@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ハイエース運行状況報告支援システム</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+
+        <div id="screen-select" class="screen active">
+            <header class="header-main">
+                <h1>ハイエース運行状況<br>報告支援システム</h1>
+                <div class="link-icon">
+                    <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M10.59,13.41C11,13.8 11,14.44 10.59,14.83C10.2,15.22 9.56,15.22 9.17,14.83C7.22,12.88 7.22,9.71 9.17,7.76L12.71,4.22C14.66,2.27 17.83,2.27 19.78,4.22C21.73,6.17 21.73,9.34 19.78,11.29L18.29,12.78C18.3,12.28 18.23,11.78 18.08,11.29L19.07,10.3C20.24,9.13 20.24,7.24 19.07,6.07C17.9,4.9 16,4.9 14.83,6.07L11.29,9.61C10.12,10.78 10.12,12.67 11.29,13.84L10.59,13.41M14.83,9.17C15.22,8.78 15.86,8.78 16.25,9.17C18.2,11.12 18.2,14.29 16.25,16.24L12.71,19.78C10.76,21.73 7.59,21.73 5.64,19.78C3.69,17.83 3.69,14.66 5.64,12.71L7.13,11.22C7.12,11.72 7.19,12.22 7.34,12.71L6.35,13.7C5.18,14.87 5.18,16.76 6.35,17.93C7.52,19.1 9.41,19.1 10.58,17.93L14.12,14.39C15.29,13.22 15.29,11.33 14.12,10.16L14.83,9.17Z"/></svg>
+                </div>
+            </header>
+
+            <main class="content-select">
+                <p class="instruction">あなたの車両を選択してください</p>
+                
+                <div class="vehicle-list">
+                    <button class="vehicle-btn" data-id="A" data-color="blue">
+                        <span class="avatar blue">A</span>
+                        <span class="name">ハイエースA</span>
+                    </button>
+                    <button class="vehicle-btn" data-id="B" data-color="red">
+                        <span class="avatar red">B</span>
+                        <span class="name">ハイエースB</span>
+                    </button>
+                    <button class="vehicle-btn" data-id="C" data-color="orange">
+                        <span class="avatar orange">C</span>
+                        <span class="name">ハイエースC</span>
+                    </button>
+                    <button class="vehicle-btn" data-id="D" data-color="green">
+                        <span class="avatar green">D</span>
+                        <span class="name">ハイエースD</span>
+                    </button>
+                </div>
+            </main>
+
+            <footer class="footer-select">
+                <p class="consent-text">※一度位置情報の利用を許可すると、次回以降は自動的に接続されます。</p>
+                <button class="btn-view-map" id="btn-view-only">位置を閲覧</button>
+            </footer>
+        </div>
+
+        <div id="screen-map" class="screen">
+            <div id="map-canvas"></div>
+
+            <div id="bottom-sheet" class="bottom-sheet">
+                <div class="drag-handle-area" id="drag-handle">
+                    <div class="drag-bar"></div>
+                </div>
+                
+                <div class="sheet-content">
+                    <div class="status-row" id="sheet-status-info">
+                        <span id="selected-avatar" class="avatar blue">A</span>
+                        <div class="status-info">
+                            <h2 id="selected-name" class="sheet-title">ハイエースA</h2>
+                            <div class="badge-row">
+                                <span class="badge-online">ONLINE</span>
+                                <span class="badge-text" id="status-label">位置情報 共有中</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="action-buttons">
+                        <button class="btn-stop-sharing" id="btn-stop">共有停止</button>
+                        <button class="btn-back" id="btn-back">もどる</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
