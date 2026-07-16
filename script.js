@@ -62,12 +62,29 @@ document.addEventListener('DOMContentLoaded', () => {
     const statusInfoArea = document.getElementById('sheet-status-info');
     const bottomSheet = document.getElementById('bottom-sheet');
     const dragHandle = document.getElementById('drag-handle');
+    const loadingOverlay = document.getElementById('loading-overlay');
+    const loadingText = document.getElementById('loading-text');
 
     let selectedVehicle = null;
     let isViewMode = false;
     let mySessionId = null; 
 
-    const colorHex = { blue: '#2f3e8f', red: '#a41d37', orange: '#d19520', green: '#0a6b41' };
+    const colorHex = { 
+        blue: '#2f3e8f', 
+        red: '#a41d37', 
+        orange: '#d19520', 
+        green: '#0a6b41',
+        grey: '#8e8e93'  // 30秒更新なしの時用のグレー色
+    };
+
+    // 読み込みインジケータ制御関数
+    function showLoading(text) {
+        loadingText.textContent = text || "接続中...";
+        loadingOverlay.classList.add('active');
+    }
+    function hideLoading() {
+        loadingOverlay.classList.remove('active');
+    }
 
     // --- 1. 車両選択（運行モード起動） ---
     vehicleButtons.forEach(button => {
@@ -80,9 +97,10 @@ document.addEventListener('DOMContentLoaded', () => {
             isViewMode = false;
             
             mySessionId = Math.random().toString(36).substring(2, 15);
-
-            // GPS一時保管場所を初期化
             latestLocation = { lat: null, lng: null, timestamp: null };
+
+            // 読み込み表示を出す
+            showLoading(`${vehicleName} 接続中...`);
 
             try {
                 const res = await fetch(GAS_WEBAPP_URL, {
@@ -98,33 +116,41 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (result.status === "success") {
                     openMapScreen();
                     
-                    // A. 高精度GPS監視をスタート（位置情報を常に最新化）
+                    // A. 高精度GPS監視をスタート
                     startLocationTracking(); 
                     
-                    // B. GASへの【30秒強制定期送信】タイマーを起動
+                    // B. GASへの30秒強制定期送信タイマー
                     sendIntervalId = setInterval(sendLocationToGAS, 30000);
                     
-                    // C. 他車の位置を取得・表示するタイマー（30秒ごと）を起動
+                    // C. 他車の位置を取得・表示するタイマー（30秒ごと）
                     fetchAndDisplayAllVehicles();
                     fetchIntervalId = setInterval(fetchAndDisplayAllVehicles, 30000);
+                    
+                    hideLoading(); // 接続完了で非表示
                 } else {
+                    hideLoading();
                     alert("ログインに失敗しました: " + result.message);
                 }
             } catch (err) {
+                hideLoading();
                 console.error(err);
                 alert("サーバーとの通信に失敗しました。URLを確認してください。");
             }
         });
     });
 
-    // 位置を閲覧（マルチ追跡モード）
-    btnViewOnly.addEventListener('click', () => {
+    // 位置を閲覧（マルチ追跡モード起動）
+    btnViewOnly.addEventListener('click', async () => {
         isViewMode = true;
         selectedVehicle = null;
+        
+        showLoading("運行マップ読み込み中...");
+        
         openMapScreen();
         
-        fetchAndDisplayAllVehicles(); // 初回ロード
-        // 30秒ごとに他車の位置データを取得・投影
+        await fetchAndDisplayAllVehicles(); // 初回ロード完了まで待つ
+        hideLoading(); // 完了したら非表示
+
         fetchIntervalId = setInterval(fetchAndDisplayAllVehicles, 30000);
     });
 
@@ -156,7 +182,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => { if (map) map.invalidateSize(); }, 100);
     }
 
-    // --- 2. 運行モード：位置情報の常時監視（保管のみ） ---
+    // --- 2. 運行モード：位置情報の常時監視 ---
     function startLocationTracking() {
         if (!navigator.geolocation) return;
 
@@ -165,37 +191,31 @@ document.addEventListener('DOMContentLoaded', () => {
                 const lat = position.coords.latitude;
                 const lng = position.coords.longitude;
                 
-                // メモリに最新座標をプール（送信はここでは行わない）
                 latestLocation.lat = lat;
                 latestLocation.lng = lng;
                 latestLocation.timestamp = new Date();
                 
-                // 自分のピンのみ地図に即時反映
                 updateMyPinOnMap(lat, lng, selectedVehicle.color, selectedVehicle.id);
             },
             (error) => { 
                 console.error("位置情報の取得に失敗:", error);
             },
             { 
-                enableHighAccuracy: true, // 高精度GPS
-                maximumAge: 0,            // キャッシュを利用せず常に最新の生データを要求
+                enableHighAccuracy: true,
+                maximumAge: 0,
                 timeout: 10000 
             }
         );
     }
 
-    // --- 3. 運行モード：30秒に1回、強制的にGASへ座標を送る処理 ---
+    // --- 3. 運行モード：30秒に1回、強制送信 ---
     async function sendLocationToGAS() {
         if (isViewMode || !selectedVehicle) return;
-
-        // GPSデータがまだ一度も取得できていない場合は送信をスキップ
         if (latestLocation.lat === null || latestLocation.lng === null) {
-            console.log("GPSデータがまだ取得できていないため、送信をスキップします。");
             return;
         }
 
         try {
-            console.log(`[GAS送信] 座標を送信します: lat=${latestLocation.lat}, lng=${latestLocation.lng}`);
             const res = await fetch(GAS_WEBAPP_URL, {
                 method: "POST",
                 body: JSON.stringify({
@@ -213,11 +233,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnBack.click(); 
             }
         } catch (err) {
-            console.warn("GASへの30秒定期送信に失敗しました:", err);
+            console.warn("GAS送信失敗:", err);
         }
     }
 
-    // --- 4. 閲覧/運行モード共通：他車の最新位置情報を一括同期して描画 ---
+    // --- 4. 共通：他車データの同期 ＆ 【30秒更新なし判定】 ---
     async function fetchAndDisplayAllVehicles() {
         try {
             const res = await fetch(GAS_WEBAPP_URL);
@@ -225,11 +245,12 @@ document.addEventListener('DOMContentLoaded', () => {
             
             const colorMap = { A: 'blue', B: 'red', C: 'orange', D: 'green' };
             let bounds = []; 
+            const now = new Date();
 
             vehicles.forEach(v => {
                 if (!v.lat || !v.lng) return;
                 
-                // 運行モード中の「自分自身のピン」は、watchPosition側で超高精度（ほぼリアルタイム）に描画するため、ここでの上書き描画をスキップします
+                // 運行モード中の自分は、リアルタイム描画を崩さないよう上書きをスキップ
                 if (!isViewMode && selectedVehicle && v.vehicle_id === selectedVehicle.id) {
                     return; 
                 }
@@ -239,8 +260,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 const newPos = [lat, lng];
                 bounds.push(newPos);
 
-                const colorClass = colorMap[v.vehicle_id] || 'blue';
                 const relativeTime = getRelativeTimeString(v.updated_at);
+                
+                // 【新規追加】30秒以上の更新遅延がないか判定
+                let isDelay = false;
+                if (v.updated_at) {
+                    const lastUpdate = new Date(v.updated_at);
+                    const diffSec = (now - lastUpdate) / 1000;
+                    if (diffSec > 30) {
+                        isDelay = true; // 30秒を超えている場合は遅延状態とする
+                    }
+                }
+
+                // 遅延状態なら灰色(grey)、稼働中なら標準色
+                const colorClass = isDelay ? 'grey' : (colorMap[v.vehicle_id] || 'blue');
+                const badgeHtml = isDelay ? '<span style="background-color:#8e8e93; font-size:10px; padding:1px 4px; border-radius:3px; margin-left:4px;">OFFLINE</span>' : '';
 
                 const customIcon = L.divIcon({
                     className: 'custom-map-pin',
@@ -251,10 +285,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (markersMap[v.vehicle_id]) {
                     markersMap[v.vehicle_id].setLatLng(newPos);
-                    markersMap[v.vehicle_id].setTooltipContent(`最終更新: ${relativeTime}`);
+                    markersMap[v.vehicle_id].setIcon(customIcon);
+                    markersMap[v.vehicle_id].setTooltipContent(`ハイエース${v.vehicle_id}${badgeHtml}<br>最終更新: ${relativeTime}`);
                 } else {
                     const marker = L.marker(newPos, { icon: customIcon }).addTo(map);
-                    marker.bindTooltip(`最終更新: ${relativeTime}`, {
+                    marker.bindTooltip(`ハイエース${v.vehicle_id}${badgeHtml}<br>最終更新: ${relativeTime}`, {
                         permanent: false, 
                         direction: 'top',
                         className: 'custom-tooltip',
@@ -272,11 +307,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         } catch (err) {
-            console.error("全車両位置の取得失敗:", err);
+            console.error("データ同期失敗:", err);
         }
     }
 
-    // 運行モード：自分専用のピン描画（滑らかな更新用）
+    // 運行モード：自分のピン描画
     function updateMyPinOnMap(lat, lng, colorClass, labelId) {
         if (!map) return;
         const newPos = [lat, lng];
@@ -305,7 +340,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // すべてのタイマーとお片付け
     function stopLocationTracking() {
         if (watchId !== null) {
             navigator.geolocation.clearWatch(watchId);
