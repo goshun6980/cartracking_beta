@@ -566,6 +566,14 @@
                         oninput="updateShareUrl()"
                         class="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-xs font-mono font-bold">
                 </div>
+                <div class="pt-1">
+                    <label
+                        class="flex items-center gap-2 cursor-pointer p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
+                        <input type="checkbox" id="cfgWakeLock"
+                            class="w-4 h-4 text-brand-600 rounded border-slate-300 focus:ring-brand-500">
+                        <span class="text-xs font-bold text-slate-700 dark:text-slate-200">位置送信中の常時画面オン（スリープ防止）を有効にする</span>
+                    </label>
+                </div>
                 <div class="pt-2 border-t border-slate-200 dark:border-slate-800">
                     <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">設定共有用 URL</label>
                     <div class="flex gap-2">
@@ -602,6 +610,7 @@
             currentView: 'map',
             theme: localStorage.getItem('fleet_theme') || 'system',
             gasUrl: localStorage.getItem('fleet_gas_url') || '',
+            wakeLockEnabled: localStorage.getItem('fleet_wakelock') === 'true', // ★ 追加: 常時画面オン設定
 
             vehicles: {},
             historyLogs: [],
@@ -613,6 +622,7 @@
             isTracking: false,
             activeDriverVehicleId: "",
             lastPos: null,
+            wakeLockSentinel: null, // ★ 追加: Wake Lock インスタンス
 
             // Sync Health
             lastNetworkCommunication: null,
@@ -998,13 +1008,22 @@
             }
         }
 
-        function toggleGpsTracking() {
+        // ★ 修正: toggleGpsTracking 関数（Wake Lock の取得・解放処理を組み込み）
+        async function toggleGpsTracking() {
             if (state.isTracking) {
                 if (state.gpsWatchId) navigator.geolocation.clearWatch(state.gpsWatchId);
                 if (state.gpsIntervalId) clearInterval(state.gpsIntervalId);
                 state.gpsWatchId = null;
                 state.gpsIntervalId = null;
                 state.isTracking = false;
+
+                // Wake Lock 解放
+                if (state.wakeLockSentinel) {
+                    try {
+                        await state.wakeLockSentinel.release();
+                    } catch (e) { }
+                    state.wakeLockSentinel = null;
+                }
 
                 document.getElementById('toggleGpsBtn').classList.replace('bg-rose-600', 'bg-brand-600');
                 document.getElementById('toggleGpsBtn').innerHTML = `<span class="material-symbols-outlined text-lg">play_arrow</span> 送信開始`;
@@ -1029,6 +1048,15 @@
                 document.getElementById('driverStatusText').innerText = "30秒間隔で送信中";
                 document.getElementById('driverStatusText').className = "text-xs font-bold text-emerald-600 dark:text-emerald-400";
 
+                // Wake Lock 要求（設定がONの場合のみ）
+                if (state.wakeLockEnabled && 'wakeLock' in navigator) {
+                    try {
+                        state.wakeLockSentinel = await navigator.wakeLock.request('screen');
+                    } catch (err) {
+                        console.warn('Wake Lock request failed:', err);
+                    }
+                }
+
                 const sendIntervalMs = (state.intervals && state.intervals.gpsSendSeconds ? state.intervals.gpsSendSeconds : 30) * 1000;
 
                 const pollAndSendGps = () => {
@@ -1040,7 +1068,6 @@
                     );
                 };
 
-                // 開始時に即1回送信し、以降30秒ごとに定期送信
                 pollAndSendGps();
                 state.gpsIntervalId = setInterval(pollAndSendGps, sendIntervalMs);
 
@@ -1782,18 +1809,24 @@
 
         function openConfigModal() {
             document.getElementById('cfgGasUrl').value = state.gasUrl || '';
+            document.getElementById('cfgWakeLock').checked = state.wakeLockEnabled; // ★ 追加
             updateShareUrl();
             document.getElementById('configModal').classList.remove('hidden');
         }
 
         function closeConfigModal() { document.getElementById('configModal').classList.add('hidden'); }
 
+        // ★ 修正: saveConfigModal 関数（Wake Lock 設定の保存処理を追加）
         function saveConfigModal() {
             state.gasUrl = document.getElementById('cfgGasUrl').value.trim();
+            state.wakeLockEnabled = document.getElementById('cfgWakeLock').checked;
+            
             localStorage.setItem('fleet_gas_url', state.gasUrl);
+            localStorage.setItem('fleet_wakelock', state.wakeLockEnabled);
+
             closeConfigModal();
             fetchVehiclesFromGAS(true);
-            showToast("GAS接続設定を保存しました", "success");
+            showToast("設定を保存しました", "success");
         }
 
         function updateShareUrl() {
