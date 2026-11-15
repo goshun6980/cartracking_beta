@@ -1,0 +1,1861 @@
+<!DOCTYPE html>
+<html lang="ja" class="h-full">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>運行状況</title>
+
+    <link id="favicon" rel="icon" type="image/svg+xml"
+        href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23334155'><path d='M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.85 7h10.29l1.04 3H5.81l1.04-3zM19 17H5v-4.99h14V17z'/><circle cx='7.5' cy='14.5' r='1.5'/><circle cx='16.5' cy='14.5' r='1.5'/></svg>">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"BIZ UDGothic"', 'system-ui', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#eef2ff',
+                            100: '#e0e7ff',
+                            400: '#818cf8',
+                            500: '#6366f1',
+                            600: '#4f46e5',
+                            700: '#4338ca',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=BIZ+UDGothic:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+    <style>
+        body {
+            font-family: 'BIZ UDGothic', system-ui, -apple-system, sans-serif;
+            touch-action: manipulation;
+        }
+
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+
+        .dark .leaflet-tile-pane {
+            filter: brightness(0.65) invert(1) contrast(1.3) hue-rotate(200deg);
+        }
+
+        .dark .leaflet-control-zoom a,
+        .dark .leaflet-control-scale-line {
+            background-color: #1e293b !important;
+            color: #f8fafc !important;
+            border-color: #475569 !important;
+        }
+
+        .leaflet-control-scale-line {
+            border: 2px solid #3b82f6;
+            border-top: none;
+            color: #1e293b;
+            font-weight: bold;
+            font-size: 11px;
+            padding: 2px 5px;
+            background: rgba(255, 255, 255, 0.9);
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(156, 163, 175, 0.5);
+            border-radius: 3px;
+        }
+
+        @keyframes spin {
+            from {
+                transform: rotate(0deg);
+            }
+
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .animate-spin-custom {
+            animation: spin 1s linear infinite;
+        }
+    </style>
+</head>
+
+<body
+    class="h-full bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 flex flex-col transition-colors duration-200">
+
+    <header
+        class="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 py-3 flex items-center justify-between shrink-0 shadow-sm z-30">
+        <div class="flex items-center gap-2">
+            <span
+                class="material-symbols-outlined text-brand-600 dark:text-brand-400 text-2xl md:text-3xl">directions_car</span>
+            <div class="flex items-center gap-2">
+                <h1 class="text-base md:text-lg font-bold leading-tight">運行状況</h1>
+                <button id="global-reload-btn" onclick="triggerManualReload()"
+                    class="relative p-1.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="データを再読み込み">
+                    <span id="global-reload-icon" class="material-symbols-outlined text-xl">refresh</span>
+                    <span id="reloadCountdown"
+                        class="absolute inset-0 flex items-center justify-center text-[6px] font-normal"></span>
+                </button>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-2 md:gap-3">
+            <div id="desktopNav"
+                class="hidden md:flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl gap-1 text-sm font-bold">
+                <button onclick="switchView('map')" id="tab-map"
+                    class="px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors bg-white dark:bg-slate-700 text-brand-600 dark:text-brand-300 shadow-sm">
+                    <span class="material-symbols-outlined text-lg">map</span> 地図
+                </button>
+                <button onclick="switchView('driver')" id="tab-driver"
+                    class="px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white">
+                    <span class="material-symbols-outlined text-lg">navigation</span> 位置送信
+                </button>
+                <button onclick="switchView('admin')" id="tab-admin"
+                    class="px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white">
+                    <span class="material-symbols-outlined text-lg">admin_panel_settings</span> 管理
+                </button>
+            </div>
+
+            <div id="syncBadge"
+                class="flex items-center gap-1.5 text-xs px-3 py-1 rounded-full bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300 font-bold border border-slate-300 dark:border-slate-700">
+                <span id="syncDot" class="w-2.5 h-2.5 rounded-full bg-slate-400"></span>
+                <span id="syncText">デモ</span>
+            </div>
+
+            <button onclick="openConfigModal()"
+                class="p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                title="設定 (GAS API)">
+                <span class="material-symbols-outlined">settings</span>
+            </button>
+            <button onclick="toggleDarkMode()"
+                class="p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                title="テーマ切り替え">
+                <span id="themeIcon" class="material-symbols-outlined">dark_mode</span>
+            </button>
+        </div>
+    </header>
+
+    <main class="flex-1 relative overflow-hidden flex flex-col md:flex-row">
+        <!-- 1. MAP VIEW -->
+        <section id="view-map" class="w-full h-full flex flex-col md:flex-row flex-1 relative">
+            <div class="flex-1 relative h-full w-full">
+                <div id="leafletMap" class="w-full h-full z-0"></div>
+                <div id="osmInfoBanner"
+                    class="absolute top-3 left-3 right-3 md:left-3 md:right-auto md:max-w-md bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-3 rounded-xl shadow-lg border border-slate-200 dark:border-slate-800 z-10 text-xs transition-opacity duration-1000">
+                    <div class="flex items-start justify-between gap-2">
+                        <div class="flex gap-2">
+                            <span class="material-symbols-outlined text-amber-500 text-lg shrink-0">info</span>
+                            <div>
+                                <strong class="text-slate-900 dark:text-slate-100 font-bold block mb-0.5">OSM
+                                    使用ガイド</strong>
+                                <p class="text-slate-600 dark:text-slate-300 leading-relaxed text-[11px]">
+                                    OpenStreetMap (OSM) を標準使用しています。この通知はあと <span id="osmTimer"
+                                        class="font-bold text-brand-600 dark:text-brand-400">10</span> 秒で自動消滅します。
+                                </p>
+                            </div>
+                        </div>
+                        <button onclick="dismissOsmBanner()"
+                            class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                            <span class="material-symbols-outlined text-base">close</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 地図タブのサイドバー／ドロワー部分 -->
+            <div id="vehicleDrawer"
+                class="w-full md:w-80 border-t md:border-t-0 md:border-l border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col h-14 md:h-full z-10 shadow-lg transition-all duration-300 min-h-0">
+
+                <!-- ヘッダー部分（固定表示） -->
+                <div
+                    class="p-3 border-b border-slate-200 dark:border-slate-800 font-bold text-xs flex items-center justify-between shrink-0">
+                    <span class="flex items-center gap-1.5 text-slate-800 dark:text-slate-100">
+                        <span class="material-symbols-outlined text-brand-600 dark:text-brand-400">directions_car</span>
+                        稼働中車両リスト
+                    </span>
+                    <div class="flex items-center gap-2">
+                        <span id="vehicleCountBadge"
+                            class="bg-brand-100 text-brand-700 dark:bg-brand-950 dark:text-brand-300 text-[11px] px-2 py-0.5 rounded-full font-bold">0台</span>
+                        <button onclick="toggleVehicleDrawer()"
+                            class="text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition md:hidden"
+                            title="リストを開閉">
+                            <span id="drawerToggleIcon" class="material-symbols-outlined text-base">expand_less</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- スクロール可能領域 -->
+                <div id="vehicleList" class="flex-1 overflow-y-auto p-2 space-y-2 min-h-0"></div>
+            </div>
+        </section>
+
+        <!-- 2. DRIVER TRANSMITTER VIEW -->
+        <section id="view-driver"
+            class="hidden w-full h-full overflow-y-auto p-4 md:p-8 max-w-xl mx-auto flex flex-col justify-start gap-4">
+
+            <div
+                class="bg-white dark:bg-slate-900 rounded-2xl p-5 md:p-6 shadow-xl border border-slate-200 dark:border-slate-800 space-y-4">
+                <div class="flex items-center gap-3">
+                    <div class="p-3 bg-brand-100 text-brand-600 dark:bg-brand-950 dark:text-brand-300 rounded-2xl">
+                        <span class="material-symbols-outlined text-3xl">navigation</span>
+                    </div>
+                    <div>
+                        <h2 class="text-lg font-bold text-slate-900 dark:text-slate-100">車載端末・位置送信管理</h2>
+                        <p class="text-xs text-slate-500 dark:text-slate-400">位置情報の送信および入出構・滞在時間の管理</p>
+                    </div>
+                </div>
+
+                <!-- 1. 担当車両を選択プルダウン -->
+                <div class="space-y-1">
+                    <div class="flex justify-between items-center mb-1">
+                        <label class="block text-xs font-bold text-slate-600 dark:text-slate-300">担当車両を選択</label>
+                        <button onclick="fetchVehiclesFromGAS(true)"
+                            class="text-[11px] text-brand-600 dark:text-brand-400 font-bold flex items-center gap-1 hover:underline">
+                            <span class="material-symbols-outlined text-sm" id="driverRefreshIcon">refresh</span>
+                            リスト更新
+                        </button>
+                    </div>
+                    <div class="relative">
+                        <select id="driverVehicleSelect" onchange="onDriverVehicleChange()"
+                            class="w-full p-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-sm font-bold focus:ring-2 focus:ring-brand-500">
+                        </select>
+                        <div id="driverSelectLoader"
+                            class="hidden absolute inset-0 bg-white/95 dark:bg-slate-900/95 rounded-xl z-20 flex items-center justify-center gap-2 text-xs font-bold text-brand-600 dark:text-brand-400">
+                            <span class="material-symbols-outlined animate-spin-custom">sync</span>
+                            スプレッドシートから読み込み中...
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. 同意チェックボックス & 3. 送信開始ボタン -->
+                <div
+                    class="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3">
+                    <label class="flex items-start gap-2.5 cursor-pointer">
+                        <input type="checkbox" id="gpsConsentCheck" onchange="onConsentCheck()"
+                            class="mt-0.5 w-4 h-4 text-brand-600 rounded border-slate-300 focus:ring-brand-500">
+                        <span class="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-bold">
+                            継続的な位置情報送信およびリアルタイム共有に同意します。
+                        </span>
+                    </label>
+
+                    <div class="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-slate-700">
+                        <div>
+                            <span class="font-bold text-xs block text-slate-800 dark:text-slate-200">送信ステータス</span>
+                            <span id="driverStatusText" class="text-xs font-bold text-slate-400">未送信 (停止中)</span>
+                        </div>
+                        <button id="toggleGpsBtn" disabled onclick="toggleGpsTracking()"
+                            class="px-5 py-2.5 rounded-xl bg-slate-300 dark:bg-slate-700 text-slate-500 font-bold text-xs shadow transition-all flex items-center gap-1.5 cursor-not-allowed">
+                            <span class="material-symbols-outlined text-lg">play_arrow</span> 送信開始
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 4. 入構時間のストップウオッチ -->
+                <div
+                    class="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-1.5">
+                            <span
+                                class="material-symbols-outlined text-brand-600 dark:text-brand-400 text-xl">timer</span>
+                            <h3 class="text-xs font-bold text-slate-900 dark:text-slate-100">入構時間・滞在管理</h3>
+                        </div>
+                        <span id="gateStatusBadge"
+                            class="text-[11px] px-2.5 py-1 rounded-full font-bold bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-400">
+                            構外 (未入構)
+                        </span>
+                    </div>
+
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <span class="text-[10px] text-slate-500 dark:text-slate-400 block mb-0.5">現在の経過時間</span>
+                            <div class="text-xl font-mono font-bold text-slate-900 dark:text-slate-100">
+                                <span id="stopwatchHour">00</span>:<span id="stopwatchMin">00</span>:<span
+                                    id="stopwatchSec">00</span>
+                            </div>
+                        </div>
+                        <div class="text-right font-mono text-[11px] text-slate-500 dark:text-slate-400 space-y-0.5">
+                            <p>入構時刻: <span id="entryTimeLabel"
+                                    class="text-slate-700 dark:text-slate-300 font-bold">--:--</span></p>
+                            <p>上限時間: <span id="maxTimeLabel"
+                                    class="text-slate-700 dark:text-slate-300 font-bold">60:00</span></p>
+                        </div>
+                    </div>
+
+                    <div class="space-y-1">
+                        <div class="flex justify-between text-[11px] font-bold">
+                            <span class="text-slate-600 dark:text-slate-400">滞在許容状況</span>
+                            <span id="indicatorText" class="text-slate-500">未計測</span>
+                        </div>
+                        <div class="w-full bg-slate-200 dark:bg-slate-700 h-2.5 rounded-full overflow-hidden p-0.5">
+                            <div id="indicatorBar"
+                                class="bg-emerald-500 h-full rounded-full transition-all duration-500"
+                                style="width: 0%;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 5. 手動報告のボタン -->
+                <div class="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+                    <div class="text-[11px] font-bold text-slate-600 dark:text-slate-400">手動報告</div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button onclick="manualGateAction('ENTRY')"
+                            class="py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow flex items-center justify-center gap-1 transition-all active:scale-95">
+                            <span class="material-symbols-outlined text-base">login</span>入構
+                        </button>
+                        <button onclick="manualGateAction('EXIT')"
+                            class="py-2 px-3 bg-slate-600 hover:bg-slate-700 text-white font-bold text-xs rounded-xl shadow flex items-center justify-center gap-1 transition-all active:scale-95">
+                            <span class="material-symbols-outlined text-base">logout</span>出講
+                        </button>
+                    </div>
+                    <div
+                        class="text-[11px] text-slate-500 dark:text-slate-400 font-mono flex justify-between items-center pt-1">
+                        <span>直近通過: <span id="lastGateLabel">なし</span></span>
+                    </div>
+                </div>
+
+                <!-- 6. 速度・方位表示 -->
+                <div class="grid grid-cols-2 gap-3 pt-2 border-t border-slate-200 dark:border-slate-800">
+                    <div class="p-3 bg-slate-100 dark:bg-slate-800 rounded-xl text-center">
+                        <span class="text-xs text-slate-500 dark:text-slate-400 block mb-1">現在速度</span>
+                        <span id="liveSpeed" class="text-2xl font-bold text-brand-600 dark:text-brand-400">0.0</span>
+                        <span class="text-xs text-slate-500 dark:text-slate-400"> km/h</span>
+                    </div>
+                    <div class="p-3 bg-slate-100 dark:bg-slate-800 rounded-xl text-center">
+                        <span class="text-xs text-slate-500 dark:text-slate-400 block mb-1">移動方向</span>
+                        <span id="liveHeading" class="text-2xl font-bold text-slate-800 dark:text-slate-100">0°</span>
+                        <span id="liveHeadingCardinal" class="text-xs text-slate-500 dark:text-slate-400 block">北</span>
+                    </div>
+                </div>
+
+                <!-- 7. 最終更新と緯度経度 -->
+                <div
+                    class="text-xs text-slate-500 dark:text-slate-400 space-y-1 bg-slate-50 dark:bg-slate-950 p-3 rounded-xl border border-slate-200 dark:border-slate-800 font-mono">
+                    <p class="flex justify-between"><span>最終更新:</span> <span id="liveLastUpdate"
+                            class="text-slate-800 dark:text-slate-200">-</span></p>
+                    <p class="flex justify-between"><span>緯度/経度:</span> <span id="liveCoords"
+                            class="text-slate-800 dark:text-slate-200">-</span></p>
+                </div>
+            </div>
+        </section>
+
+        <!-- 3. ADMIN DASHBOARD VIEW -->
+        <section id="view-admin" class="hidden w-full h-full overflow-y-auto p-4 md:p-8 max-w-5xl mx-auto space-y-6">
+            <div
+                class="md:hidden p-4 bg-amber-100 dark:bg-amber-950/80 text-amber-900 dark:text-amber-200 rounded-xl border border-amber-300 dark:border-amber-800 text-xs flex items-center gap-2">
+                <span class="material-symbols-outlined text-lg shrink-0">warning</span>
+                <span>管理画面はデスクトップ表示に最適化されています。</span>
+            </div>
+
+            <div id="adminAuthCard"
+                class="max-w-md mx-auto bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-xl border border-slate-200 dark:border-slate-800 text-center space-y-4">
+                <div
+                    class="w-14 h-14 bg-brand-100 dark:bg-brand-950 text-brand-600 dark:text-brand-300 rounded-full flex items-center justify-center mx-auto">
+                    <span class="material-symbols-outlined text-3xl">lock</span>
+                </div>
+                <h2 class="text-lg font-bold text-slate-900 dark:text-slate-100">管理者認証</h2>
+                <p class="text-xs text-slate-500 dark:text-slate-400">管理者パスワードを入力してください。</p>
+
+                <div class="space-y-3">
+                    <input type="password" id="adminPasswordInput" placeholder="パスワードを入力"
+                        class="w-full p-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-center font-bold text-base focus:ring-2 focus:ring-brand-500">
+                    <button onclick="attemptAdminLogin()"
+                        class="w-full py-3 bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs rounded-xl shadow transition-all active:scale-95">
+                        認証してログイン
+                    </button>
+                </div>
+            </div>
+
+            <div id="adminPanel" class="hidden space-y-6">
+                <div
+                    class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                    <div>
+                        <h2 class="text-lg font-bold flex items-center gap-2 text-slate-900 dark:text-slate-100">
+                            <span
+                                class="material-symbols-outlined text-brand-600 dark:text-brand-400">admin_panel_settings</span>
+                            車両・運行データ管理
+                        </h2>
+                        <p class="text-xs text-slate-500 dark:text-slate-400">Googleスプレッドシートと連動した車両データの維持・編集
+                        </p>
+                    </div>
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <button onclick="openVehicleModal()"
+                            class="px-3.5 py-2 bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs rounded-xl shadow flex items-center gap-1 transition-transform active:scale-95">
+                            <span class="material-symbols-outlined text-base">add</span> 車両追加
+                        </button>
+                        <button onclick="fetchVehiclesFromGAS(true)"
+                            class="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow flex items-center gap-1 transition-transform active:scale-95">
+                            <span class="material-symbols-outlined text-base" id="adminRefreshIcon">refresh</span>
+                            データ再取得
+                        </button>
+                        <button onclick="exportAllCSV()"
+                            class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow flex items-center gap-1 transition-transform active:scale-95">
+                            <span class="material-symbols-outlined text-base">download</span> 一括CSV出力
+                        </button>
+                        <button onclick="adminLogout()"
+                            class="px-3 py-2 bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 font-bold text-xs rounded-xl transition-colors">
+                            ログアウト
+                        </button>
+                    </div>
+                </div>
+
+                <div
+                    class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm relative min-h-[250px]">
+                    <div
+                        class="p-4 border-b border-slate-200 dark:border-slate-800 font-bold text-xs flex justify-between items-center text-slate-800 dark:text-slate-200">
+                        <span class="flex items-center gap-1.5">
+                            登録済み車両一覧
+                        </span>
+                        <span class="text-slate-500">全<span id="adminVehicleCount">0</span>台</span>
+                    </div>
+
+                    <div id="adminTableLoader"
+                        class="hidden absolute inset-0 bg-white/95 dark:bg-slate-900/95 z-20 flex flex-col items-center justify-center gap-2 text-xs font-bold text-brand-600 dark:text-brand-400">
+                        <span class="material-symbols-outlined text-3xl animate-spin-custom">sync</span>
+                        <span>スプレッドシートから最新データを読み込み中...</span>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs border-collapse">
+                            <thead>
+                                <tr
+                                    class="bg-slate-100 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300 font-bold">
+                                    <th class="p-3">カラー</th>
+                                    <th class="p-3">車両番号 (ID)</th>
+                                    <th class="p-3">車両名 / ドライバー名</th>
+                                    <th class="p-3">ゲート状態 / 入構時間</th>
+                                    <th class="p-3">ログインステータス</th>
+                                    <th class="p-3">最終更新</th>
+                                    <th class="p-3 text-right">データ操作 / 編集</th>
+                                </tr>
+                            </thead>
+                            <tbody id="adminVehicleTableBody"
+                                class="divide-y divide-slate-200 dark:divide-slate-800 text-slate-800 dark:text-slate-200">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <nav
+        class="md:hidden bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 flex justify-around p-2 shrink-0 z-30 shadow-lg">
+        <button onclick="switchView('map')" id="mob-tab-map"
+            class="flex flex-col items-center gap-1 text-brand-600 dark:text-brand-400 font-bold text-xs">
+            <span class="material-symbols-outlined text-2xl">map</span> 地図
+        </button>
+        <button onclick="switchView('driver')" id="mob-tab-driver"
+            class="flex flex-col items-center gap-1 text-slate-500 dark:text-slate-400 text-xs">
+            <span class="material-symbols-outlined text-2xl">navigation</span> 位置送信
+        </button>
+        <button onclick="switchView('admin')" id="mob-tab-admin"
+            class="flex flex-col items-center gap-1 text-slate-500 dark:text-slate-400 text-xs">
+            <span class="material-symbols-outlined text-2xl">admin_panel_settings</span> 管理
+        </button>
+    </nav>
+
+    <!-- MODAL: Vehicle Add / Edit -->
+    <div id="vehicleModal" class="hidden fixed inset-0 bg-slate-950/70 z-50 flex items-center justify-center p-4">
+        <div
+            class="bg-white dark:bg-slate-900 rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-800 space-y-4">
+            <h3 id="vehicleModalTitle" class="text-base font-bold text-slate-900 dark:text-slate-100">車両情報の追加・編集</h3>
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">車両番号 / ID (例:
+                        CAR-001)</label>
+                    <input type="text" id="modalVehicleId" oninput="validateVehicleIdDuplicate()"
+                        class="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-xs font-bold">
+                    <div id="duplicateWarning"
+                        class="hidden mt-1 text-[11px] font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1">
+                        <span class="material-symbols-outlined text-sm">warning</span>
+                        <span>この車両番号(ID)は既にスプレッドシートに登録されています！</span>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">車両名</label>
+                    <input type="text" id="modalVehicleName"
+                        class="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-xs font-bold">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">ドライバー名</label>
+                    <input type="text" id="modalDriverName"
+                        class="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-xs font-bold">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">識別カラー</label>
+                    <input type="color" id="modalVehicleColor"
+                        class="w-full h-10 p-1 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 cursor-pointer"
+                        value="#6366f1">
+                </div>
+            </div>
+            <div class="flex justify-end gap-2 pt-2">
+                <button onclick="closeVehicleModal()"
+                    class="px-4 py-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-bold">キャンセル</button>
+                <button id="saveVehicleModalBtn" onclick="saveVehicleModal()"
+                    class="px-5 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-bold shadow flex items-center gap-1">
+                    <span>保存してスプシ反映</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: Config -->
+    <div id="configModal" class="hidden fixed inset-0 bg-slate-950/70 z-50 flex items-center justify-center p-4">
+        <div
+            class="bg-white dark:bg-slate-900 rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-800 space-y-4">
+            <div class="flex justify-between items-center">
+                <h3 class="text-base font-bold flex items-center gap-2 text-slate-900 dark:text-slate-100">
+                    <span class="material-symbols-outlined text-brand-600 dark:text-brand-400">settings</span> GitHub /
+                    GAS 連携・設定
+                </h3>
+                <button onclick="closeConfigModal()"
+                    class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Google Apps Script
+                        Web App URL</label>
+                    <input type="text" id="cfgGasUrl" placeholder="https://script.google.com/macros/s/AKfycb.../exec"
+                        oninput="updateShareUrl()"
+                        class="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-xs font-mono font-bold">
+                </div>
+                <div class="pt-2 border-t border-slate-200 dark:border-slate-800">
+                    <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">設定共有用 URL</label>
+                    <div class="flex gap-2">
+                        <input type="text" id="cfgShareUrl" readonly
+                            class="flex-1 p-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-950 text-slate-600 dark:text-slate-400 text-xs font-mono">
+                        <button onclick="copyShareUrl()"
+                            class="px-3 py-2 bg-brand-600 text-white rounded-xl text-xs font-bold shadow hover:bg-brand-700 shrink-0">URLコピー</button>
+                    </div>
+                </div>
+            </div>
+            <div class="flex justify-end gap-2 pt-2">
+                <button onclick="closeConfigModal()"
+                    class="px-4 py-2 rounded-xl text-slate-600 dark:text-slate-300 text-xs font-bold">閉じる</button>
+                <button onclick="saveConfigModal()"
+                    class="px-5 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-bold shadow">保存して適用</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification Box -->
+    <div id="toast"
+        class="fixed bottom-16 md:bottom-6 left-1/2 -translate-x-1/2 bg-slate-900/95 dark:bg-slate-100/95 text-white dark:text-slate-900 px-5 py-3 rounded-2xl shadow-2xl text-xs font-bold transition-all duration-300 opacity-0 pointer-events-none z-50 flex items-center gap-2.5 border border-slate-700 dark:border-slate-300">
+        <span class="material-symbols-outlined text-lg text-brand-400 dark:text-brand-600" id="toastIcon">info</span>
+        <span id="toastMsg">通知</span>
+    </div>
+
+    <script>
+        // STATE MANAGEMENT
+        let state = {
+
+            mapBounds: null, // 追加
+            gateSettings: { defaultRadius: 15, entryGates: [], exitGates: [] },
+
+            adminAuthenticated: false,
+            currentView: 'map',
+            theme: localStorage.getItem('fleet_theme') || 'system',
+            gasUrl: localStorage.getItem('fleet_gas_url') || '',
+
+            vehicles: {},
+            historyLogs: [],
+            isLoadingVehicles: false,
+
+            // GPS Driver Mode State
+            gpsWatchId: null,
+            isTracking: false,
+            activeDriverVehicleId: "",
+            lastPos: null,
+
+            // Sync Health
+            lastNetworkCommunication: null,
+            isCurrentlyOffline: false,
+
+            // Manual Reload CoolDown state
+            reloadCooldown: 0,
+            cooldownTimer: null,
+            osmTimerSeconds: 10,
+
+            // Gate & Entry Tracking State
+            gateSettings: { defaultRadius: 15, entryGates: [], exitGates: [] },
+            timerSettings: { maxMinutes: 60, warningMinutes: 45, dangerMinutes: 55 },
+            activeEntryState: {
+                isInside: false,
+                entryGateName: "",
+                entryTime: null,
+                elapsedSeconds: 0,
+                lastGateName: ""
+            },
+            pendingCP1: {}, // 車両ごとのCP1通過記憶
+            stopwatchInterval: null
+        };
+
+        let map, mapMarkers = {}, historyPolyline = null;
+        let editingVehicleId = null;
+
+        async function loadGitHubConfig() {
+            try {
+                const configUrl = new URL('config.json', window.location.href).href;
+                const res = await fetch(configUrl, { cache: 'no-store' });
+                if (!res.ok) throw new Error('config.json を取得できません');
+                const cfg = await res.json();
+
+                if (cfg.gasUrl && !state.gasUrl) state.gasUrl = cfg.gasUrl;
+                if (cfg.app && cfg.app.theme && state.theme === 'system') state.theme = cfg.app.theme;
+                if (cfg.gateSettings) state.gateSettings = cfg.gateSettings;
+                if (cfg.timerSettings) state.timerSettings = cfg.timerSettings;
+
+                // --- 【追加】初期マップ境界の設定を読み込み ---
+                if (cfg.mapBounds) {
+                    state.mapBounds = cfg.mapBounds;
+                }
+
+                updateTimerSettingsUI();
+                return cfg;
+            } catch (e) {
+                console.warn('config.json load failed:', e);
+                return null;
+            }
+        }
+
+        window.onload = async function () {
+            await loadGitHubConfig();
+            parseUrlParameters();
+            initTheme();
+            initLeafletMap();
+            initOsmTimer();
+            await fetchVehiclesFromGAS();
+            fetchHistoryFromGAS();
+            startFastPolling();
+            startStopwatchUI();
+        };
+
+        function parseUrlParameters() {
+            const params = new URLSearchParams(window.location.search);
+            if (params.has('gasUrl')) {
+                state.gasUrl = params.get('gasUrl');
+                localStorage.setItem('fleet_gas_url', state.gasUrl);
+                showToast("URLからGAS接続情報を読み込みました", "success");
+            }
+        }
+
+        function updateTimerSettingsUI() {
+            const maxLabel = document.getElementById('maxTimeLabel');
+            if (maxLabel) maxLabel.innerText = `${state.timerSettings.maxMinutes}:00`;
+        }
+
+        // initLeafletMap関数内を確認し、L.control.scaleが複数回呼ばれていないか確認してください
+        function initLeafletMap() {
+            if (map) return; // 既に初期化済みの場合は二重作成しない
+            map = L.map('leafletMap', { zoomControl: true, attributionControl: true }).setView([35.15250, 136.96861], 13);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
+
+            // スケールコントロールの重複を防ぐため、既に存在しない場合のみ追加
+            L.control.scale({ imperial: false, metric: true, position: 'bottomleft' }).addTo(map);
+            autoFitMapBounds();
+        }
+
+        // 修正対象: autoFitMapBounds 関数を以下のように差し替え
+        function autoFitMapBounds() {
+            if (!map) return;
+
+            // 1. まず config.json に mapBounds が指定されていれば、それを最優先で適用する
+            if (state.mapBounds && state.mapBounds.southWest && state.mapBounds.northEast) {
+                const sw = [state.mapBounds.southWest.lat, state.mapBounds.southWest.lng];
+                const ne = [state.mapBounds.northEast.lat, state.mapBounds.northEast.lng];
+                map.fitBounds(L.latLngBounds(sw, ne), { padding: [20, 20] });
+                return;
+            }
+
+            // 2. 設定がない場合は従来の車両位置に合わせる
+            const vehicleList = Object.values(state.vehicles);
+            if (vehicleList.length > 0) {
+                const bounds = L.latLngBounds(vehicleList.map(v => [v.lat, v.lng]));
+                map.fitBounds(bounds, { padding: [50, 50], maxZoom: 16 });
+            }
+        }
+
+        function updateMapMarkers() {
+            if (!map) return;
+            Object.keys(mapMarkers).forEach(id => {
+                if (!state.vehicles[id]) {
+                    map.removeLayer(mapMarkers[id]);
+                    delete mapMarkers[id];
+                }
+            });
+
+            Object.values(state.vehicles).forEach(v => {
+                const colorHex = v.color || '#6366f1';
+                const statusStr = v.isInside ? `【構内】${v.entryGateName || '入構中'}` : '構外';
+
+                if (!mapMarkers[v.id]) {
+                    const svgIcon = L.divIcon({
+                        className: 'custom-vehicle-marker',
+                        html: `
+                                <div style="transform: rotate(${v.heading || 0}deg);" class="transition-transform duration-300">
+                                    <div style="background-color: ${colorHex};" class="w-8 h-8 rounded-full flex items-center justify-center text-white shadow-lg border-2 border-white dark:border-slate-900">
+                                        <span class="material-symbols-outlined text-lg">navigation</span>
+                                    </div>
+                                </div>
+                            `,
+                        iconSize: [32, 32],
+                        iconAnchor: [16, 16]
+                    });
+
+                    const marker = L.marker([v.lat, v.lng], { icon: svgIcon }).addTo(map);
+                    marker.bindPopup(`
+                            <div class="text-xs p-1 font-sans">
+                                <strong style="color: ${colorHex}">${v.name}</strong> (${v.id})<br>
+                                状態: ${statusStr}<br>
+                                速度: ${Number(v.speed).toFixed(1)} km/h<br>
+                                更新: ${formatTimeAgo(v.lastUpdated)}
+                            </div>
+                        `);
+                    mapMarkers[v.id] = marker;
+                } else {
+                    mapMarkers[v.id].setLatLng([v.lat, v.lng]);
+                    const iconElem = mapMarkers[v.id].getElement();
+                    if (iconElem) {
+                        const rotInner = iconElem.querySelector('.transition-transform');
+                        if (rotInner) rotInner.style.transform = `rotate(${v.heading || 0}deg)`;
+                        const circle = iconElem.querySelector('.w-8');
+                        if (circle) circle.style.backgroundColor = colorHex;
+                    }
+                    mapMarkers[v.id].getPopup().setContent(`
+                            <div class="text-xs p-1 font-sans">
+                                <strong style="color: ${colorHex}">${v.name}</strong> (${v.id})<br>
+                                状態: ${statusStr}<br>
+                                速度: ${Number(v.speed).toFixed(1)} km/h<br>
+                                更新: ${formatTimeAgo(v.lastUpdated)}
+                            </div>
+                        `);
+                }
+            });
+        }
+
+        function initOsmTimer() {
+            const timerElem = document.getElementById('osmTimer');
+            const interval = setInterval(() => {
+                state.osmTimerSeconds--;
+                if (timerElem) timerElem.innerText = state.osmTimerSeconds;
+                if (state.osmTimerSeconds <= 0) {
+                    clearInterval(interval);
+                    dismissOsmBanner();
+                }
+            }, 1000);
+        }
+
+        function dismissOsmBanner() {
+            const banner = document.getElementById('osmInfoBanner');
+            if (banner) {
+                banner.classList.add('opacity-0', 'pointer-events-none');
+                setTimeout(() => banner.remove(), 1000);
+            }
+        }
+
+        // ゲート通過（CP1 ➔ CP2）判定ロジック
+        function evaluateGatePassage(lat, lng, vehicleId) {
+            const radius = state.gateSettings.defaultRadius || 15;
+            const now = new Date();
+
+            if (!state.pendingCP1[vehicleId]) state.pendingCP1[vehicleId] = {};
+
+            // A入構ゲートの判定
+            state.gateSettings.entryGates.forEach(gate => {
+                const distCP1 = calculateDistance(lat, lng, gate.cp1.lat, gate.cp1.lng);
+                const distCP2 = calculateDistance(lat, lng, gate.cp2.lat, gate.cp2.lng);
+
+                if (distCP1 <= radius) {
+                    state.pendingCP1[vehicleId][gate.id] = now.getTime();
+                }
+
+                if (distCP2 <= radius) {
+                    const cp1Time = state.pendingCP1[vehicleId][gate.id];
+                    // 過去60秒以内にCP1を通過していれば「入構確定」
+                    if (cp1Time && (now.getTime() - cp1Time) <= 60000) {
+                        delete state.pendingCP1[vehicleId][gate.id];
+                        triggerEntryEvent(vehicleId, gate.name, now);
+                    }
+                }
+            });
+
+            // B出構ゲートの判定
+            state.gateSettings.exitGates.forEach(gate => {
+                const distCP1 = calculateDistance(lat, lng, gate.cp1.lat, gate.cp1.lng);
+                const distCP2 = calculateDistance(lat, lng, gate.cp2.lat, gate.cp2.lng);
+
+                if (distCP1 <= radius) {
+                    state.pendingCP1[vehicleId][gate.id] = now.getTime();
+                }
+
+                if (distCP2 <= radius) {
+                    const cp1Time = state.pendingCP1[vehicleId][gate.id];
+                    // 過去60秒以内にCP1を通過していれば「出構確定」
+                    if (cp1Time && (now.getTime() - cp1Time) <= 60000) {
+                        delete state.pendingCP1[vehicleId][gate.id];
+                        triggerExitEvent(vehicleId, gate.name, now);
+                    }
+                }
+            });
+        }
+
+        // 入構処理
+        function triggerEntryEvent(vehicleId, gateName, timestamp) {
+            const v = state.vehicles[vehicleId];
+            if (v && v.isInside) return; // 既に入構中なら重複スキップ
+
+            if (v) {
+                v.isInside = true;
+                v.entryGateName = gateName;
+                v.entryTime = timestamp.toISOString();
+            }
+
+            if (vehicleId === state.activeDriverVehicleId) {
+                state.activeEntryState.isInside = true;
+                state.activeEntryState.entryGateName = gateName;
+                state.activeEntryState.entryTime = timestamp;
+                state.activeEntryState.lastGateName = gateName;
+
+                document.getElementById('gateStatusBadge').innerText = `入構中`;
+                document.getElementById('gateStatusBadge').className = "text-[11px] px-2.5 py-1 rounded-full font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300";
+                document.getElementById('entryTimeLabel').innerText = timestamp.toLocaleTimeString().slice(0, 5);
+                document.getElementById('lastGateLabel').innerText = gateName;
+                showToast(`【入構検知】${gateName} を通過しました`, "success");
+            }
+
+            sendGateEventToGAS(vehicleId, 'ENTRY', gateName, timestamp);
+        }
+
+        // 修正対象: triggerExitEvent 関数を探して以下のように差し替えてください
+        function triggerExitEvent(vehicleId, gateName, timestamp) {
+            const v = state.vehicles[vehicleId];
+            if (v) {
+                v.isInside = false;
+                v.entryGateName = "";
+                v.entryTime = null; // 入構時刻をクリア
+            }
+
+            // 操作中の車両が現在ドライバー画面で選択されている車両であれば、即座に画面をリセット
+            if (vehicleId === document.getElementById('driverVehicleSelect').value) {
+                state.activeEntryState.isInside = false;
+                state.activeEntryState.entryGateName = "";
+                state.activeEntryState.entryTime = null;
+                state.activeEntryState.elapsedSeconds = 0;
+
+                // 画面のステータスバッジを「構外」に変更
+                const badge = document.getElementById('gateStatusBadge');
+                if (badge) {
+                    badge.innerText = "構外 (出構完了)";
+                    badge.className = "text-[11px] px-2.5 py-1 rounded-full font-bold bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-400";
+                }
+
+                const entryTimeLbl = document.getElementById('entryTimeLabel');
+                if (entryTimeLbl) entryTimeLbl.innerText = "--:--";
+
+                const lastGateLbl = document.getElementById('lastGateLabel');
+                if (lastGateLbl) lastGateLbl.innerText = gateName;
+
+                // ストップウオッチとインジケーターを強制リセット
+                updateStopwatchDisplay(0);
+                updateIndicatorUI(0);
+
+                showToast(`【出構検知】${gateName} を通過しました`, "info");
+            }
+
+            // 車両リストやマップ上の表示も更新
+            refreshLocalUI();
+
+            // スプレッドシートへイベント記録
+            sendGateEventToGAS(vehicleId, 'EXIT', gateName, timestamp);
+        }
+
+        // ストップウォッチ＆インジケーターUI制御（パターンA: MAXで固定）
+        function startStopwatchUI() {
+            setInterval(() => {
+                // デバッグ用ログ等で activeEntryState を確認できるようにする
+                if (!state.activeEntryState.isInside || !state.activeEntryState.entryTime) {
+                    updateStopwatchDisplay(0);
+                    updateIndicatorUI(0);
+                    return;
+                }
+
+                const maxSec = (state.timerSettings && state.timerSettings.maxMinutes ? state.timerSettings.maxMinutes : 60) * 60;
+                let elapsed = Math.floor((new Date() - new Date(state.activeEntryState.entryTime)) / 1000);
+
+                if (elapsed < 0) elapsed = 0;
+
+                state.activeEntryState.elapsedSeconds = elapsed;
+                updateStopwatchDisplay(elapsed);
+                updateIndicatorUI(elapsed);
+            }, 1000);
+        }
+
+        function updateStopwatchDisplay(sec) {
+            const hrs = String(Math.floor(sec / 3600)).padStart(2, '0');
+            const mins = String(Math.floor((sec % 3600) / 60)).padStart(2, '0');
+            const secs = String(sec % 60).padStart(2, '0');
+
+            document.getElementById('stopwatchHour').innerText = hrs;
+            document.getElementById('stopwatchMin').innerText = mins;
+            document.getElementById('stopwatchSec').innerText = secs;
+        }
+
+        function updateIndicatorUI(elapsedSec) {
+            const maxMin = state.timerSettings.maxMinutes || 60;
+            const warnMin = state.timerSettings.warningMinutes || 45;
+            const dangerMin = state.timerSettings.dangerMinutes || 55;
+
+            const elapsedMin = elapsedSec / 60;
+            const percent = Math.min(100, Math.max(0, (elapsedMin / maxMin) * 100));
+
+            const bar = document.getElementById('indicatorBar');
+            const text = document.getElementById('indicatorText');
+
+            if (!bar || !text) return;
+
+            bar.style.width = `${percent}%`;
+
+            if (!state.activeEntryState.isInside) {
+                bar.className = "bg-slate-300 h-full rounded-full transition-all duration-500";
+                text.innerText = "未計測";
+                text.className = "text-slate-500";
+                return;
+            }
+
+            const remainMin = Math.max(0, Math.ceil(maxMin - elapsedMin));
+
+            if (elapsedMin >= dangerMin) {
+                // 危険レベル (赤色・点滅)
+                bar.className = "bg-rose-500 h-full rounded-full transition-all duration-500 animate-pulse";
+                text.innerText = `出構警告 (残り${remainMin}分)`;
+                text.className = "text-rose-600 dark:text-rose-400 font-bold";
+            } else if (elapsedMin >= warnMin) {
+                // 警告レベル (黄色)
+                bar.className = "bg-amber-500 h-full rounded-full transition-all duration-500";
+                text.innerText = `出構準備 (残り${remainMin}分)`;
+                text.className = "text-amber-600 dark:text-amber-400 font-bold";
+            } else {
+                // 通常レベル (緑色)
+                bar.className = "bg-emerald-500 h-full rounded-full transition-all duration-500";
+                text.innerText = `余裕あり (残り${remainMin}分)`;
+                text.className = "text-emerald-600 dark:text-emerald-400";
+            }
+        }
+
+        // GPS TRANSMITTER LOGIC
+        function onConsentCheck() {
+            const check = document.getElementById('gpsConsentCheck').checked;
+            const btn = document.getElementById('toggleGpsBtn');
+            btn.disabled = !check;
+            if (check) {
+                btn.classList.replace('bg-slate-300', 'bg-brand-600');
+                btn.classList.replace('dark:bg-slate-700', 'bg-brand-600');
+                btn.classList.replace('text-slate-500', 'text-white');
+                btn.classList.remove('cursor-not-allowed');
+            } else {
+                if (state.isTracking) toggleGpsTracking();
+                btn.classList.replace('bg-brand-600', 'bg-slate-300');
+                btn.classList.replace('bg-rose-600', 'bg-slate-300');
+                btn.classList.add('text-slate-500', 'cursor-not-allowed');
+            }
+        }
+
+        function toggleGpsTracking() {
+            if (state.isTracking) {
+                if (state.gpsWatchId) navigator.geolocation.clearWatch(state.gpsWatchId);
+                state.isTracking = false;
+                document.getElementById('toggleGpsBtn').classList.replace('bg-rose-600', 'bg-brand-600');
+                document.getElementById('toggleGpsBtn').innerHTML = `<span class="material-symbols-outlined text-lg">play_arrow</span> 送信開始`;
+                document.getElementById('driverStatusText').innerText = "停止中";
+                document.getElementById('driverStatusText').className = "text-xs font-bold text-slate-400";
+                showToast("位置情報の送信を停止しました", "info");
+            } else {
+                if (!navigator.geolocation) {
+                    showToast("お使いの端末は位置情報送信に対応していません", "warning");
+                    return;
+                }
+
+                state.activeDriverVehicleId = document.getElementById('driverVehicleSelect').value;
+                if (!state.activeDriverVehicleId) {
+                    showToast("送信対象の車両を選択してください", "warning");
+                    return;
+                }
+
+                state.isTracking = true;
+                document.getElementById('toggleGpsBtn').classList.replace('bg-brand-600', 'bg-rose-600');
+                document.getElementById('toggleGpsBtn').innerHTML = `<span class="material-symbols-outlined text-lg">stop</span> 送信停止`;
+                document.getElementById('driverStatusText').innerText = "リアルタイム送信中";
+                document.getElementById('driverStatusText').className = "text-xs font-bold text-emerald-600 dark:text-emerald-400";
+
+                state.gpsWatchId = navigator.geolocation.watchPosition(
+                    handleGpsPosition,
+                    handleGpsError,
+                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+                );
+                showToast("位置情報の送信を開始しました", "success");
+            }
+        }
+
+        function handleGpsPosition(pos) {
+            const { latitude, longitude, speed, heading } = pos.coords;
+            const now = new Date();
+
+            let calcSpeed = speed ? (speed * 3.6) : 0;
+            let calcHeading = heading || 0;
+
+            if (state.lastPos && (!speed || !heading)) {
+                const dt = (now - state.lastPos.time) / 1000;
+                if (dt > 0) {
+                    const dist = calculateDistance(state.lastPos.lat, state.lastPos.lng, latitude, longitude);
+                    calcSpeed = (dist / dt) * 3.6;
+                    calcHeading = calculateBearing(state.lastPos.lat, state.lastPos.lng, latitude, longitude);
+                }
+            }
+
+            state.lastPos = { lat: latitude, lng: longitude, time: now };
+            const vId = state.activeDriverVehicleId;
+
+            // ゲート通過チェック実行
+            evaluateGatePassage(latitude, longitude, vId);
+
+            if (state.vehicles[vId]) {
+                state.vehicles[vId].lat = latitude;
+                state.vehicles[vId].lng = longitude;
+                state.vehicles[vId].speed = calcSpeed;
+                state.vehicles[vId].heading = calcHeading;
+                state.vehicles[vId].online = true;
+                state.vehicles[vId].lastUpdated = now.toISOString();
+
+                const logItem = {
+                    id: vId,
+                    lat: latitude,
+                    lng: longitude,
+                    speed: calcSpeed,
+                    time: now.toISOString(),
+                    isInside: state.vehicles[vId].isInside || false,
+                    entryGateName: state.vehicles[vId].entryGateName || ""
+                };
+
+                state.historyLogs.push(logItem);
+                sendPositionToGAS(logItem, vId);
+            }
+
+            document.getElementById('liveSpeed').innerText = calcSpeed.toFixed(1);
+            document.getElementById('liveHeading').innerText = `${Math.round(calcHeading)}°`;
+            document.getElementById('liveHeadingCardinal').innerText = getCardinalDirection(calcHeading);
+            document.getElementById('liveCoords').innerText = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+            document.getElementById('liveLastUpdate').innerText = now.toLocaleTimeString();
+
+            refreshLocalUI();
+        }
+
+        function handleGpsError(err) { showToast(`GPSエラー: ${err.message}`, "warning"); }
+
+        // ADMIN MANAGEMENT
+        async function attemptAdminLogin() {
+            const pwdInput = document.getElementById('adminPasswordInput').value;
+            let adminPassword = "Admin";
+            try {
+                const configUrl = new URL('config.json', window.location.href).href;
+                const res = await fetch(configUrl, { cache: 'no-store' });
+                if (res.ok) {
+                    const cfg = await res.json();
+                    if (cfg.admin && typeof cfg.admin.password === 'string' && cfg.admin.password) adminPassword = cfg.admin.password;
+                }
+            } catch (e) { }
+
+            if (pwdInput === adminPassword) {
+                state.adminAuthenticated = true;
+                showAdminPanel();
+                showToast("管理者ログインに成功しました", "success");
+                return;
+            }
+            showToast("パスワードが正しくありません", "warning");
+        }
+
+        function showAdminPanel() {
+            document.getElementById('adminAuthCard').classList.add('hidden');
+            document.getElementById('adminPanel').classList.remove('hidden');
+            renderAdminTable();
+        }
+
+        function adminLogout() {
+            state.adminAuthenticated = false;
+            document.getElementById('adminAuthCard').classList.remove('hidden');
+            document.getElementById('adminPanel').classList.add('hidden');
+            document.getElementById('adminPasswordInput').value = '';
+            showToast("ログアウトしました", "info");
+        }
+
+        function openVehicleModal(id = null) {
+            editingVehicleId = id;
+            document.getElementById('duplicateWarning').classList.add('hidden');
+            document.getElementById('saveVehicleModalBtn').disabled = false;
+
+            if (id && state.vehicles[id]) {
+                const v = state.vehicles[id];
+                document.getElementById('vehicleModalTitle').innerText = "車両情報の編集";
+                document.getElementById('modalVehicleId').value = v.id;
+                document.getElementById('modalVehicleId').disabled = true;
+                document.getElementById('modalVehicleName').value = v.name;
+                document.getElementById('modalDriverName').value = v.driverName || '';
+                document.getElementById('modalVehicleColor').value = v.color || "#6366f1";
+            } else {
+                document.getElementById('vehicleModalTitle').innerText = "新規車両追加";
+                document.getElementById('modalVehicleId').value = `CAR-00${Object.keys(state.vehicles).length + 1}`;
+                document.getElementById('modalVehicleId').disabled = false;
+                document.getElementById('modalVehicleName').value = "";
+                document.getElementById('modalDriverName').value = "";
+                document.getElementById('modalVehicleColor').value = "#6366f1";
+                validateVehicleIdDuplicate();
+            }
+            document.getElementById('vehicleModal').classList.remove('hidden');
+        }
+
+        function closeVehicleModal() { document.getElementById('vehicleModal').classList.add('hidden'); }
+
+        function validateVehicleIdDuplicate() {
+            if (editingVehicleId) return;
+            const inputId = document.getElementById('modalVehicleId').value.trim();
+            const warningElem = document.getElementById('duplicateWarning');
+            const saveBtn = document.getElementById('saveVehicleModalBtn');
+
+            if (inputId && state.vehicles[inputId]) {
+                warningElem.classList.remove('hidden');
+                saveBtn.disabled = true;
+                saveBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            } else {
+                warningElem.classList.add('hidden');
+                saveBtn.disabled = false;
+                saveBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+        }
+
+        async function saveVehicleModal() {
+            const vId = document.getElementById('modalVehicleId').value.trim();
+            const name = document.getElementById('modalVehicleName').value.trim();
+            const driverName = document.getElementById('modalDriverName').value.trim();
+            const color = document.getElementById('modalVehicleColor').value;
+
+            if (!vId || !name) { showToast('車両IDと名前を入力してください', 'warning'); return; }
+
+            if (!editingVehicleId && state.vehicles[vId]) {
+                showToast(`車両ID「${vId}」は既に使用されています`, 'warning');
+                return;
+            }
+
+            let v = editingVehicleId && state.vehicles[editingVehicleId]
+                ? { ...state.vehicles[editingVehicleId], name, driverName, color }
+                : { id: vId, name, driverName, color, lat: 35.15250, lng: 136.96861, speed: 0, heading: 0, online: false, isInside: false, entryGateName: "", entryTime: null, lastUpdated: new Date().toISOString() };
+
+            if (editingVehicleId) v.id = editingVehicleId;
+
+            showToast("スプレッドシートへ保存中...", "info");
+
+            if (!state.gasUrl) {
+                state.vehicles[v.id] = v;
+                refreshLocalUI();
+                closeVehicleModal();
+                showToast(`車両「${v.name}」をデモデータとして追加・保存しました`, 'success');
+                return;
+            }
+
+            const ok = await saveVehicleToGAS(v);
+            if (ok) {
+                await fetchVehiclesFromGAS(true);
+                closeVehicleModal();
+                showToast(`車両「${v.name}」(${v.id}) を反映しました！`, 'success');
+            } else {
+                showToast('車両情報の保存に失敗しました。', 'warning');
+            }
+        }
+
+        async function deleteVehicle(id) {
+            if (!confirm(`車両 [ ${id} ] をスプレッドシートから削除しますか？`)) return;
+
+            showToast("削除処理中...", "info");
+            if (!state.gasUrl) {
+                delete state.vehicles[id];
+                refreshLocalUI();
+                showToast('デモデータから削除しました', 'info');
+                return;
+            }
+
+            if (await deleteVehicleFromGAS(id)) {
+                delete state.vehicles[id];
+                if (mapMarkers[id]) { map.removeLayer(mapMarkers[id]); delete mapMarkers[id]; }
+                await fetchVehiclesFromGAS(true);
+                showToast(`車両 ${id} を削除しました`, 'info');
+            }
+        }
+
+        async function toggleVehicleOnlineStatus(id) {
+            if (!state.vehicles[id]) return;
+            const next = !state.vehicles[id].online;
+            if (!state.gasUrl) { state.vehicles[id].online = next; refreshLocalUI(); return; }
+
+            showToast("ステータスを更新中...", "info");
+            if (await setVehicleOnlineOnGAS(id, next)) {
+                state.vehicles[id].online = next;
+                refreshLocalUI();
+                showToast(`車両 ${id} のステータスを変更しました`, "success");
+            }
+        }
+
+        function exportCSV(vehicleId = null) {
+            let logs = state.historyLogs;
+            if (vehicleId) logs = logs.filter(l => l.id === vehicleId);
+            if (logs.length === 0) { showToast("エクスポート対象のデータがありません", "warning"); return; }
+
+            let csvContent = "\uFEFFid,time,speed,latitude,longitude,isInside,entryGateName\n";
+            logs.forEach(l => {
+                csvContent += `${l.id},${l.time},${Number(l.speed).toFixed(2)},${l.lat},${l.lng},${l.isInside ? 1 : 0},${l.entryGateName || ''}\n`;
+            });
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `fleet_log_${vehicleId || 'all'}_${new Date().toISOString().slice(0, 10)}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast("CSVを出力しました", "success");
+        }
+
+        function exportAllCSV() { exportCSV(null); }
+
+        // GAS REQUEST API
+        async function gasRequest(action, payload = {}, method = 'GET') {
+            if (!state.gasUrl) throw new Error('GAS URLが設定されていません');
+
+            const isWrite = method !== 'GET';
+            const params = { action };
+            if (isWrite) params.payload = JSON.stringify(payload || {});
+            else Object.assign(params, payload || {});
+
+            const q = new URLSearchParams(params);
+            const target = state.gasUrl + (state.gasUrl.includes('?') ? '&' : '?') + q.toString();
+
+            const res = await fetch(target, { method: 'GET', mode: 'cors', cache: 'no-store', redirect: 'follow' });
+            const raw = await res.text();
+            if (!res.ok) throw new Error(`GAS HTTP ${res.status}: ${raw.slice(0, 200)}`);
+
+            let data = JSON.parse(raw);
+            if (data && data.ok === false) throw new Error(data.error || 'GAS error');
+
+            state.lastNetworkCommunication = new Date();
+            state.isCurrentlyOffline = false;
+            updateSyncBadgeStatus('synced');
+            return data;
+        }
+
+        async function sendGateEventToGAS(vehicleId, eventType, gateName, timestamp) {
+            if (!state.gasUrl) return;
+            try {
+                await gasRequest('recordGateEvent', { vehicleId, eventType, gateName, timestamp: timestamp.toISOString() }, 'POST');
+            } catch (err) {
+                console.error('GAS gate event error:', err);
+            }
+        }
+
+        let lastGoodVehicleSnapshot = null;
+        let consecutiveEmptyVehicleReads = 0;
+
+        // 修正対象: fetchVehiclesFromGAS 関数内
+        async function fetchVehiclesFromGAS(userInitiated = false) {
+            if (!state.gasUrl) { updateSyncBadgeStatus('demo'); refreshLocalUI(); return; }
+
+            showLoadingIndicators(true);
+            try {
+                const data = await gasRequest('getVehicles');
+                const incoming = (data && data.vehicles && typeof data.vehicles === 'object') ? data.vehicles : {};
+
+                state.vehicles = incoming;
+                lastGoodVehicleSnapshot = { ...incoming };
+                refreshLocalUI();
+
+                // --- 【追加】データ更新時に、現在選択されている車両の入出構状態を強制同期する ---
+                onDriverVehicleChange();
+
+                if (userInitiated) showToast("最新データを取得しました", "success");
+            } catch (err) {
+                console.error('GAS vehicle fetch error:', err);
+                if (lastGoodVehicleSnapshot) {
+                    state.vehicles = { ...lastGoodVehicleSnapshot };
+                    refreshLocalUI();
+                    onDriverVehicleChange();
+                }
+                handleSyncOfflineState();
+            } finally {
+                showLoadingIndicators(false);
+            }
+        }
+
+        function showLoadingIndicators(show) {
+            state.isLoadingVehicles = show;
+            const globalIcon = document.getElementById('global-reload-icon');
+            if (globalIcon) { if (show) globalIcon.classList.add('animate-spin-custom'); else globalIcon.classList.remove('animate-spin-custom'); }
+
+            const adminLoader = document.getElementById('adminTableLoader');
+            if (adminLoader) { if (show) adminLoader.classList.remove('hidden'); else adminLoader.classList.add('hidden'); }
+
+            const driverLoader = document.getElementById('driverSelectLoader');
+            if (driverLoader) { if (show) driverLoader.classList.remove('hidden'); else driverLoader.classList.add('hidden'); }
+        }
+
+        async function fetchHistoryFromGAS() {
+            if (!state.gasUrl) return;
+            try {
+                const data = await gasRequest('getHistory', { date: new Date().toISOString().split('T')[0] });
+                state.historyLogs = Array.isArray(data.history) ? data.history : [];
+                updateMapMarkers();
+            } catch (err) { }
+        }
+
+        async function sendPositionToGAS(logItem, vehicleId) {
+            if (!state.gasUrl) return;
+            try { await gasRequest('updatePosition', { vehicleId, log: logItem }, 'POST'); } catch (err) { }
+        }
+
+        async function saveVehicleToGAS(vehicle) {
+            if (!state.gasUrl) return false;
+            try { await gasRequest('saveVehicle', { vehicle }, 'POST'); return true; } catch (err) { return false; }
+        }
+
+        async function deleteVehicleFromGAS(id) {
+            if (!state.gasUrl) return false;
+            try { await gasRequest('deleteVehicle', { id }, 'POST'); return true; } catch (err) { return false; }
+        }
+
+        async function setVehicleOnlineOnGAS(id, online) {
+            if (!state.gasUrl) return false;
+            try { await gasRequest('setVehicleOnline', { id, online }, 'POST'); return true; } catch (err) { return false; }
+        }
+
+        function startFastPolling() {
+            setInterval(() => {
+                if (state.gasUrl && !state.isLoadingVehicles) fetchVehiclesFromGAS(false);
+                evaluateSyncHealth();
+            }, state.isTracking ? 30000 : (state.currentView === 'map' ? 60000 : 30000));
+        }
+
+        async function triggerManualReload() {
+            if (state.reloadCooldown > 0 || state.isLoadingVehicles) return;
+            try {
+                await fetchVehiclesFromGAS(true);
+                startCooldown(state.isTracking ? 30 : 60);
+            } catch (e) { }
+        }
+
+        function startCooldown(seconds) {
+            state.reloadCooldown = seconds;
+            const btn = document.getElementById('global-reload-btn');
+            const countdownElem = document.getElementById('reloadCountdown');
+            if (btn) btn.disabled = true;
+
+            if (state.cooldownTimer) clearInterval(state.cooldownTimer);
+
+            state.cooldownTimer = setInterval(() => {
+                state.reloadCooldown--;
+                if (countdownElem) countdownElem.innerText = state.reloadCooldown > 0 ? state.reloadCooldown : '';
+                if (state.reloadCooldown <= 0) {
+                    clearInterval(state.cooldownTimer);
+                    if (btn) btn.disabled = false;
+                    if (countdownElem) countdownElem.innerText = '';
+                }
+            }, 1000);
+        }
+
+        function evaluateSyncHealth() {
+            if (!state.gasUrl) { updateSyncBadgeStatus('demo'); return; }
+            if (!state.lastNetworkCommunication || (Date.now() - state.lastNetworkCommunication.getTime()) > 5 * 60 * 1000) updateSyncBadgeStatus('offline');
+            else updateSyncBadgeStatus('synced');
+        }
+
+        function handleSyncOfflineState() { evaluateSyncHealth(); }
+
+        function updateSyncBadgeStatus(status) {
+            const badge = document.getElementById('syncBadge');
+            const dot = document.getElementById('syncDot');
+            const text = document.getElementById('syncText');
+            if (!badge || !dot || !text) return;
+            badge.className = 'flex items-center gap-1.5 text-xs px-3 py-1 rounded-full font-bold border';
+            if (status === 'synced') {
+                badge.classList.add('bg-emerald-50', 'text-emerald-700', 'border-emerald-200', 'dark:bg-emerald-950', 'dark:text-emerald-300', 'dark:border-emerald-900');
+                dot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500'; text.innerText = '同期中';
+            } else if (status === 'offline') {
+                badge.classList.add('bg-amber-50', 'text-amber-700', 'border-amber-200', 'dark:bg-amber-950', 'dark:text-amber-300', 'dark:border-amber-900');
+                dot.className = 'w-2.5 h-2.5 rounded-full bg-amber-500'; text.innerText = 'オフライン';
+            } else {
+                badge.classList.add('bg-slate-200', 'text-slate-700', 'border-slate-300', 'dark:bg-slate-800', 'dark:text-slate-300', 'dark:border-slate-700');
+                dot.className = 'w-2.5 h-2.5 rounded-full bg-slate-400'; text.innerText = 'デモ';
+            }
+        }
+
+        function refreshLocalUI() {
+            populateVehicleSelects();
+            renderVehicleLists();
+            updateMapMarkers();
+        }
+
+        function renderVehicleLists() {
+            const listContainer = document.getElementById('vehicleList');
+            listContainer.innerHTML = '';
+
+            const vehiclesArr = Object.values(state.vehicles);
+            document.getElementById('vehicleCountBadge').innerText = `${vehiclesArr.length}台`;
+
+            if (vehiclesArr.length === 0) {
+                listContainer.innerHTML = `<div class="text-center py-6 text-xs text-slate-400">登録された車両がありません</div>`;
+            } else {
+                // 修正対象: renderVehicleLists関数内の vehicleCards 生成ループ部分
+                vehiclesArr.forEach(v => {
+                    const colorHex = v.color || '#6366f1';
+                    const speedNum = Number(v.speed) || 0;
+
+                    // 入構中の場合の残り時間・進捗計算
+                    // 入構中の場合の残り時間・進捗計算（config.jsonのタイマー設定と完全連動）
+                    let timeInfoHtml = '';
+                    if (v.isInside && v.entryTime) {
+                        const maxMin = (state.timerSettings && state.timerSettings.maxMinutes) ? state.timerSettings.maxMinutes : 60;
+                        const warnMin = (state.timerSettings && state.timerSettings.warningMinutes) ? state.timerSettings.warningMinutes : 45;
+                        const dangerMin = (state.timerSettings && state.timerSettings.dangerMinutes) ? state.timerSettings.dangerMinutes : 55;
+
+                        const elapsedSec = Math.floor((new Date() - new Date(v.entryTime)) / 1000);
+                        const elapsedMin = elapsedSec / 60;
+                        const percent = Math.min(100, Math.max(0, (elapsedMin / maxMin) * 100));
+                        const entryTimeStr = new Date(v.entryTime).toLocaleTimeString().slice(0, 5);
+                        const remainMin = Math.max(0, Math.ceil(maxMin - elapsedMin));
+
+                        let barColor = 'bg-emerald-500';
+                        let statusTextColor = 'text-slate-500 dark:text-slate-400';
+
+                        if (elapsedMin >= dangerMin) {
+                            // 危険レベル (赤色・点滅)
+                            barColor = 'bg-rose-500 animate-pulse';
+                            statusTextColor = 'text-rose-600 dark:text-rose-400 font-bold';
+                        } else if (elapsedMin >= warnMin) {
+                            // 警告レベル (黄色)
+                            barColor = 'bg-amber-500';
+                            statusTextColor = 'text-amber-600 dark:text-amber-400 font-bold';
+                        }
+
+                        timeInfoHtml = `
+        <div class="mt-1 pt-1 border-t border-slate-200 dark:border-slate-700 space-y-1">
+            <div class="flex justify-between text-[10px] ${statusTextColor}">
+                <span>入構: ${entryTimeStr} (${v.entryGateName || '構内'})</span>
+                <span>残り ${remainMin}分</span>
+            </div>
+            <div class="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
+                <div class="${barColor} h-full rounded-full transition-all duration-500" style="width: ${percent}%;"></div>
+            </div>
+        </div>
+    `;
+                    }
+
+                    const item = document.createElement('div');
+                    item.className = "p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 hover:border-brand-500 cursor-pointer transition-all";
+                    item.onclick = () => focusOnVehicle(v.id);
+                    item.innerHTML = `
+            <div class="flex items-center justify-between mb-1">
+                <span class="font-bold text-xs flex items-center gap-1.5 text-slate-800 dark:text-slate-100">
+                    <span class="w-3 h-3 rounded-full shrink-0" style="background-color: ${colorHex}"></span>
+                    ${v.name}
+                </span>
+                <span class="text-[10px] px-2 py-0.5 rounded-full font-bold ${v.isInside ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300' : 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}">
+                    ${v.isInside ? '構内' : '構外'}
+                </span>
+            </div>
+            <div class="text-[11px] text-slate-500 dark:text-slate-400 flex justify-between font-mono">
+                <span>速度: ${speedNum.toFixed(1)} km/h</span>
+                <span>${formatTimeAgo(v.lastUpdated)}</span>
+            </div>
+            ${timeInfoHtml}
+        `;
+                    listContainer.appendChild(item);
+                });
+            }
+
+            if (state.adminAuthenticated) renderAdminTable();
+        }
+
+        function focusOnVehicle(id) {
+            const v = state.vehicles[id];
+            if (!v || !map) return;
+            map.setView([v.lat, v.lng], 16, { animate: true });
+            if (mapMarkers[id]) mapMarkers[id].openPopup();
+        }
+
+        function renderAdminTable() {
+            const adminBody = document.getElementById('adminVehicleTableBody');
+            if (!adminBody) return;
+
+            const vehiclesArr = Object.values(state.vehicles);
+            adminBody.innerHTML = '';
+            document.getElementById('adminVehicleCount').innerText = vehiclesArr.length;
+
+            if (vehiclesArr.length === 0) {
+                adminBody.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-slate-400 font-bold">スプレッドシートに登録車両がありません。</td></tr>`;
+                return;
+            }
+
+            vehiclesArr.forEach(v => {
+                const colorHex = v.color || '#6366f1';
+                const row = document.createElement('tr');
+                row.className = "hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors";
+                row.innerHTML = `
+                        <td class="p-3"><span class="w-4 h-4 rounded-full inline-block align-middle border border-slate-300 dark:border-slate-700" style="background-color: ${colorHex}"></span></td>
+                        <td class="p-3 font-mono font-bold text-brand-600 dark:text-brand-400">${v.id}</td>
+                        <td class="p-3 font-bold">
+                            <div>${v.name}</div>
+                            <div class="text-[11px] font-normal text-slate-500">${v.driverName ? '乗務者: ' + v.driverName : 'ドライバー未設定'}</div>
+                        </td>
+                        <td class="p-3">
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${v.isInside ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300' : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300'}">
+                                ${v.isInside ? '構内' : '構外'}
+                            </span>
+                        </td>
+                        <td class="p-3">
+                            <button onclick="toggleVehicleOnlineStatus('${v.id}')" class="px-2 py-1 rounded-full text-[10px] font-bold transition-all hover:scale-105 ${v.online ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300' : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-300'}">
+                                ${v.online ? 'オンライン' : 'オフライン'}
+                            </button>
+                        </td>
+                        <td class="p-3 text-slate-500 dark:text-slate-400 font-mono text-[11px]">${formatTimeAgo(v.lastUpdated)}</td>
+                        <td class="p-3 text-right space-x-1">
+                            <button onclick="exportCSV('${v.id}')" title="CSV出力" class="p-1.5 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950 rounded-lg transition-colors"><span class="material-symbols-outlined text-base">download</span></button>
+                            <button onclick="openVehicleModal('${v.id}')" title="編集" class="p-1.5 text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-950 rounded-lg transition-colors"><span class="material-symbols-outlined text-base">edit</span></button>
+                            <button onclick="deleteVehicle('${v.id}')" title="削除" class="p-1.5 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950 rounded-lg transition-colors"><span class="material-symbols-outlined text-base">delete</span></button>
+                        </td>
+                    `;
+                adminBody.appendChild(row);
+            });
+        }
+
+        // 修正対象: populateVehicleSelects 関数を以下のように差し替え
+        function populateVehicleSelects() {
+            const select = document.getElementById('driverVehicleSelect');
+            if (!select) return;
+
+            const previousValue = select.value;
+            select.innerHTML = '';
+            const vehiclesArr = Object.values(state.vehicles);
+
+            if (vehiclesArr.length === 0) {
+                const opt = document.createElement('option');
+                opt.value = "";
+                opt.innerText = "登録車両なし (管理画面から追加してください)";
+                select.appendChild(opt);
+            } else {
+                vehiclesArr.forEach(v => {
+                    const opt = document.createElement('option');
+                    opt.value = v.id;
+                    opt.innerText = `${v.name} (${v.id})${v.driverName ? ' - ' + v.driverName : ''}`;
+                    select.appendChild(opt);
+                });
+
+                // 以前選択されていたものがあれば維持、なければ先頭の車両をデフォルト選択
+                if (previousValue && state.vehicles[previousValue]) {
+                    select.value = previousValue;
+                } else if (vehiclesArr.length > 0) {
+                    select.value = vehiclesArr[0].id;
+                }
+            }
+
+            // 選択された車両の状態を即座にUIへ反映
+            onDriverVehicleChange();
+        }
+
+        // 修正対象: switchView 関数内
+        function switchView(viewName) {
+            state.currentView = viewName;
+            ['map', 'driver', 'admin'].forEach(v => {
+                document.getElementById(`view-${v}`).classList.add('hidden');
+            });
+            document.getElementById(`view-${viewName}`).classList.remove('hidden');
+
+            if (viewName === 'map' && map) {
+                setTimeout(() => map.invalidateSize(), 200);
+            } else if (viewName === 'driver' || (viewName === 'admin' && state.adminAuthenticated)) {
+                fetchVehiclesFromGAS(true);
+            }
+
+            // --- 【ここを修正】デスクトップ用タブのアクティブ・非アクティブ切り替え ---
+            ['map', 'driver', 'admin'].forEach(v => {
+                const tabBtn = document.getElementById(`tab-${v}`);
+                if (!tabBtn) return;
+                if (v === viewName) {
+                    tabBtn.className = "px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors bg-white dark:bg-slate-700 text-brand-600 dark:text-brand-100 shadow-sm font-bold";
+                } else {
+                    tabBtn.className = "px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors text-slate-600 dark:text-slate-100 hover:text-slate-900 dark:hover:text-white font-bold";
+                }
+            });
+
+            // モバイル用タブの切り替え
+            ['map', 'driver', 'admin'].forEach(v => {
+                const mobBtn = document.getElementById(`mob-tab-${v}`);
+                if (!mobBtn) return;
+                if (v === viewName) {
+                    mobBtn.className = "flex flex-col items-center gap-1 text-brand-600 dark:text-brand-400 font-bold text-xs";
+                } else {
+                    mobBtn.className = "flex flex-col items-center gap-1 text-slate-500 dark:text-slate-400 text-xs";
+                }
+            });
+        }
+
+        function toggleDarkMode() {
+            const html = document.documentElement;
+            if (html.classList.contains('dark')) {
+                html.classList.remove('dark');
+                document.getElementById('themeIcon').innerText = 'dark_mode';
+                localStorage.setItem('fleet_theme', 'light');
+            } else {
+                html.classList.add('dark');
+                document.getElementById('themeIcon').innerText = 'light_mode';
+                localStorage.setItem('fleet_theme', 'dark');
+            }
+        }
+
+        function initTheme() {
+            if (state.theme === 'dark' || (state.theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark');
+                document.getElementById('themeIcon').innerText = 'light_mode';
+            } else {
+                document.documentElement.classList.remove('dark');
+                document.getElementById('themeIcon').innerText = 'dark_mode';
+            }
+        }
+
+        function toggleVehicleDrawer() {
+            const drawer = document.getElementById('vehicleDrawer');
+            const icon = document.getElementById('drawerToggleIcon');
+            if (window.innerWidth < 768) {
+                if (drawer.classList.contains('h-14')) {
+                    // 拡大表示：画面高さの60%に設定してスクロール可能に
+                    drawer.classList.remove('h-14');
+                    drawer.classList.add('h-[60vh]');
+                    if (icon) icon.innerText = 'expand_more';
+                } else {
+                    // 縮小表示：ヘッダーのみ表示
+                    drawer.classList.remove('h-[60vh]', 'h-[75vh]', 'h-48', 'h-40');
+                    drawer.classList.add('h-14');
+                    if (icon) icon.innerText = 'expand_less';
+                }
+            }
+        }
+
+        function openConfigModal() {
+            document.getElementById('cfgGasUrl').value = state.gasUrl || '';
+            updateShareUrl();
+            document.getElementById('configModal').classList.remove('hidden');
+        }
+
+        function closeConfigModal() { document.getElementById('configModal').classList.add('hidden'); }
+
+        function saveConfigModal() {
+            state.gasUrl = document.getElementById('cfgGasUrl').value.trim();
+            localStorage.setItem('fleet_gas_url', state.gasUrl);
+            closeConfigModal();
+            fetchVehiclesFromGAS(true);
+            showToast("GAS接続設定を保存しました", "success");
+        }
+
+        function updateShareUrl() {
+            const url = document.getElementById('cfgGasUrl').value.trim();
+            const baseUrl = window.location.origin + window.location.pathname;
+            const params = new URLSearchParams();
+            if (url) params.set('gasUrl', url);
+            document.getElementById('cfgShareUrl').value = `${baseUrl}?${params.toString()}`;
+        }
+
+        function copyShareUrl() {
+            const input = document.getElementById('cfgShareUrl');
+            input.select();
+            document.execCommand('copy');
+            showToast("共有用URLをコピーしました", "success");
+        }
+
+        function showToast(msg, type = "info") {
+            const toast = document.getElementById('toast');
+            const icon = document.getElementById('toastIcon');
+            document.getElementById('toastMsg').innerText = msg;
+
+            if (type === 'success') { icon.innerText = 'check_circle'; icon.className = 'material-symbols-outlined text-lg text-emerald-400 dark:text-emerald-500'; }
+            else if (type === 'warning') { icon.innerText = 'warning'; icon.className = 'material-symbols-outlined text-lg text-amber-400 dark:text-amber-500'; }
+            else { icon.innerText = 'info'; icon.className = 'material-symbols-outlined text-lg text-brand-400 dark:text-brand-500'; }
+
+            toast.classList.remove('opacity-0', 'pointer-events-none');
+            setTimeout(() => toast.classList.add('opacity-0', 'pointer-events-none'), 3500);
+        }
+
+        function formatTimeAgo(isoString) {
+            if (!isoString) return "-";
+            const diffSec = Math.floor((new Date() - new Date(isoString)) / 1000);
+            if (diffSec < 10) return "たった今";
+            if (diffSec < 60) return `${Math.floor(diffSec / 10) * 10}秒前`;
+            return `${Math.floor(diffSec / 60)}分前`;
+        }
+
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371e3;
+            const φ1 = lat1 * Math.PI / 180;
+            const φ2 = lat2 * Math.PI / 180;
+            const Δφ = (lat2 - lat1) * Math.PI / 180;
+            const Δλ = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        }
+
+        function calculateBearing(lat1, lon1, lat2, lon2) {
+            const φ1 = lat1 * Math.PI / 180;
+            const φ2 = lat2 * Math.PI / 180;
+            const Δλ = (lon2 - lon1) * Math.PI / 180;
+            const y = Math.sin(Δλ) * Math.cos(φ2);
+            const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
+            return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+        }
+
+        function getCardinalDirection(angle) {
+            const dirs = ['北', '北東', '東', '南東', '南', '南西', '西', '北西'];
+            return dirs[Math.round(angle / 45) % 8];
+        }
+
+        // 修正・改善版: onDriverVehicleChange 関数
+        function onDriverVehicleChange() {
+            const select = document.getElementById('driverVehicleSelect');
+            if (!select) return;
+            const vId = select.value;
+            const v = state.vehicles[vId];
+
+            if (!v) {
+                resetDriverGateUI();
+                return;
+            }
+
+            // 車両の入構状態をチェック
+            if (v.isInside && v.entryTime) {
+                const entryDate = new Date(v.entryTime);
+
+                // サーバーから取得したデータでアクティブ状態を上書き・同期
+                state.activeEntryState.isInside = true;
+                state.activeEntryState.entryGateName = v.entryGateName || '入構中';
+                state.activeEntryState.entryTime = entryDate;
+
+                const badge = document.getElementById('gateStatusBadge');
+                const entryLabel = document.getElementById('entryTimeLabel');
+                const lastGateLabel = document.getElementById('lastGateLabel');
+
+                if (badge) {
+                    badge.innerText = `入構中 (${v.entryGateName || '入構中'})`;
+                    badge.className = "text-[11px] px-2.5 py-1 rounded-full font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300";
+                }
+                if (entryLabel) entryLabel.innerText = entryDate.toLocaleTimeString().slice(0, 5);
+                if (lastGateLabel) lastGateLabel.innerText = v.entryGateName || '入構中';
+
+            } else {
+                // 出構済み、または未入構の場合は確実にリセットする
+                resetDriverGateUI();
+            }
+        }
+
+        function resetDriverGateUI() {
+            state.activeEntryState.isInside = false;
+            state.activeEntryState.entryGateName = "";
+            state.activeEntryState.entryTime = null;
+            state.activeEntryState.elapsedSeconds = 0;
+
+            const badge = document.getElementById('gateStatusBadge');
+            const entryLabel = document.getElementById('entryTimeLabel');
+            const lastGateLabel = document.getElementById('lastGateLabel');
+
+            if (badge) {
+                badge.innerText = "構外 (未入構)";
+                badge.className = "text-[11px] px-2.5 py-1 rounded-full font-bold bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-400";
+            }
+            if (entryLabel) entryLabel.innerText = "--:--";
+            if (lastGateLabel) lastGateLabel.innerText = "なし";
+
+            updateStopwatchDisplay(0);
+            updateIndicatorUI(0);
+        }
+
+        // 修正後の manualGateAction 関数（フォールバック削除版）
+        async function manualGateAction(eventType) {
+            const vId = document.getElementById('driverVehicleSelect').value;
+            if (!vId || !state.vehicles[vId]) {
+                showToast("対象の車両を選択してください", "warning");
+                return;
+            }
+
+            const v = state.vehicles[vId];
+            const currentLat = v.lat || 35.15250;
+            const currentLng = v.lng || 136.96861;
+
+            // config.json から直接取得（フォールバックなし）
+            const targetGates = (eventType === 'ENTRY')
+                ? state.gateSettings.entryGates
+                : state.gateSettings.exitGates;
+
+            if (!targetGates || targetGates.length === 0) {
+                showToast("ゲート設定が読み込まれていません（config.jsonを確認してください）", "error");
+                return;
+            }
+
+            let nearestGate = null;
+            let minDistance = Infinity;
+
+            targetGates.forEach(g => {
+                const dist = calculateDistance(currentLat, currentLng, g.cp2.lat, g.cp2.lng);
+                if (dist < minDistance) {
+                    minDistance = dist;
+                    nearestGate = g;
+                }
+            });
+
+            const gateName = nearestGate ? nearestGate.name : (eventType === 'ENTRY' ? "手動入構" : "手動出構");
+            const now = new Date();
+
+            if (eventType === 'ENTRY') {
+                triggerEntryEvent(vId, gateName, now);
+            } else {
+                triggerExitEvent(vId, gateName, now);
+            }
+
+            if (state.gasUrl) {
+                showToast("スプレッドシートへ状態保存中...", "info");
+                await sendGateEventToGAS(vId, eventType, gateName, now);
+                await fetchVehiclesFromGAS(false);
+            }
+        }
+
+    </script>
+</body>
+
+</html>
