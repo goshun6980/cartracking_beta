@@ -622,7 +622,8 @@
             isTracking: false,
             activeDriverVehicleId: "",
             lastPos: null,
-            wakeLockSentinel: null, // ★ 追加: Wake Lock インスタンス
+            latestGpsLog: null, // ★ 追加: 30秒定期送信用の最新位置情報バッファ
+            wakeLockSentinel: null,
 
             // Sync Health
             lastNetworkCommunication: null,
@@ -1008,13 +1009,14 @@
             }
         }
 
-        // ★ 修正: toggleGpsTracking 関数（Wake Lock の取得・解放処理を組み込み）
+        // ★ 修正: toggleGpsTracking 関数（GPS取得はwatchPositionで毎秒リアルタイム監視、GASへの位置送信のみ30秒間隔）
         async function toggleGpsTracking() {
             if (state.isTracking) {
                 if (state.gpsWatchId) navigator.geolocation.clearWatch(state.gpsWatchId);
                 if (state.gpsIntervalId) clearInterval(state.gpsIntervalId);
                 state.gpsWatchId = null;
                 state.gpsIntervalId = null;
+                state.latestGpsLog = null;
                 state.isTracking = false;
 
                 // Wake Lock 解放
@@ -1043,9 +1045,10 @@
                 }
 
                 state.isTracking = true;
+                state.latestGpsLog = null;
                 document.getElementById('toggleGpsBtn').classList.replace('bg-brand-600', 'bg-rose-600');
                 document.getElementById('toggleGpsBtn').innerHTML = `<span class="material-symbols-outlined text-lg">stop</span> 送信停止`;
-                document.getElementById('driverStatusText').innerText = "30秒間隔で送信中";
+                document.getElementById('driverStatusText').innerText = "リアルタイム監視中 (30秒間隔送信)";
                 document.getElementById('driverStatusText').className = "text-xs font-bold text-emerald-600 dark:text-emerald-400";
 
                 // Wake Lock 要求（設定がONの場合のみ）
@@ -1057,24 +1060,28 @@
                     }
                 }
 
+                // 1. GPS取得・ゲート通過(CP1/CP2)判定は watchPosition でリアルタイム（毎秒レベル）監視
+                state.gpsWatchId = navigator.geolocation.watchPosition(
+                    handleGpsPosition,
+                    handleGpsError,
+                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+                );
+
+                // 2. GASへの位置情報送信は30秒間隔で定期実行
                 const sendIntervalMs = (state.intervals && state.intervals.gpsSendSeconds ? state.intervals.gpsSendSeconds : 30) * 1000;
+                state.gpsIntervalId = setInterval(() => {
+                    if (!state.isTracking || !state.latestGpsLog) return;
+                    const { logItem, vId } = state.latestGpsLog;
+                    state.historyLogs.push(logItem);
+                    sendPositionToGAS(logItem, vId);
+                    state.latestGpsLog = null; // 重複送信防止のためクリア
+                }, sendIntervalMs);
 
-                const pollAndSendGps = () => {
-                    if (!state.isTracking) return;
-                    navigator.geolocation.getCurrentPosition(
-                        handleGpsPosition,
-                        handleGpsError,
-                        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-                    );
-                };
-
-                pollAndSendGps();
-                state.gpsIntervalId = setInterval(pollAndSendGps, sendIntervalMs);
-
-                showToast("位置情報の定期送信（30秒間隔）を開始しました", "success");
+                showToast("位置情報のリアルタイム監視（30秒間隔送信）を開始しました", "success");
             }
         }
 
+        // ★ 修正: handleGpsPosition 関数（ゲート判定とUI更新は即時実行、GAS送信はバッファへ保存して30秒ごとに送信）
         function handleGpsPosition(pos) {
             const { latitude, longitude, speed, heading } = pos.coords;
             const now = new Date();
@@ -1094,6 +1101,7 @@
             state.lastPos = { lat: latitude, lng: longitude, time: now };
             const vId = state.activeDriverVehicleId;
 
+            // CP1 / CP2 ゲート通過判定はリアルタイム（GPS受信ごと）に即座に実行
             evaluateGatePassage(latitude, longitude, vId);
 
             if (state.vehicles[vId]) {
@@ -1114,8 +1122,14 @@
                     entryGateName: state.vehicles[vId].entryGateName || ""
                 };
 
-                state.historyLogs.push(logItem);
-                sendPositionToGAS(logItem, vId);
+                // 初回位置取得時は即座に1回送信し、以降は30秒タイマー用に最新位置を保持
+                if (!state.hasSentInitialGps) {
+                    state.hasSentInitialGps = true;
+                    state.historyLogs.push(logItem);
+                    sendPositionToGAS(logItem, vId);
+                } else {
+                    state.latestGpsLog = { logItem, vId };
+                }
             }
 
             document.getElementById('liveSpeed').innerText = calcSpeed.toFixed(1);
