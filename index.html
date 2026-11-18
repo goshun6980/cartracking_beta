@@ -1048,7 +1048,7 @@
                 state.latestGpsLog = null;
                 document.getElementById('toggleGpsBtn').classList.replace('bg-brand-600', 'bg-rose-600');
                 document.getElementById('toggleGpsBtn').innerHTML = `<span class="material-symbols-outlined text-lg">stop</span> 送信停止`;
-                document.getElementById('driverStatusText').innerText = "リアルタイム監視中 (30秒間隔送信)";
+                document.getElementById('driverStatusText').innerText = "リアルタイム送信中";
                 document.getElementById('driverStatusText').className = "text-xs font-bold text-emerald-600 dark:text-emerald-400";
 
                 // Wake Lock 要求（設定がONの場合のみ）
@@ -1077,7 +1077,7 @@
                     state.latestGpsLog = null; // 重複送信防止のためクリア
                 }, sendIntervalMs);
 
-                showToast("位置情報のリアルタイム監視（30秒間隔送信）を開始しました", "success");
+                showToast("位置情報のリアルタイム30秒間隔送信を開始しました", "success");
             }
         }
 
