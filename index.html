@@ -1077,7 +1077,7 @@
                     state.latestGpsLog = null; // 重複送信防止のためクリア
                 }, sendIntervalMs);
 
-                showToast("位置情報のリアルタイム30秒間隔送信を開始しました", "success");
+                showToast("位置情報のリアルタイム監視（30秒間隔送信）を開始しました", "success");
             }
         }
 
@@ -1182,7 +1182,9 @@
         function openVehicleModal(id = null) {
             editingVehicleId = id;
             document.getElementById('duplicateWarning').classList.add('hidden');
+            document.getElementById('formatWarning').classList.add('hidden');
             document.getElementById('saveVehicleModalBtn').disabled = false;
+            document.getElementById('saveVehicleModalBtn').classList.remove('opacity-50', 'cursor-not-allowed');
 
             if (id && state.vehicles[id]) {
                 const v = state.vehicles[id];
@@ -1196,49 +1198,111 @@
                 document.getElementById('modalInfiniteTime').checked = Boolean(v.infiniteTime);
             } else {
                 document.getElementById('vehicleModalTitle').innerText = "新規車両追加";
-                document.getElementById('modalVehicleId').value = `CAR-00${Object.keys(state.vehicles).length + 1}`;
+                document.getElementById('modalVehicleId').value = "";
                 document.getElementById('modalVehicleId').disabled = false;
                 document.getElementById('modalVehicleName').value = "";
                 document.getElementById('modalDriverName').value = "";
                 document.getElementById('modalVehicleColor').value = "#6366f1";
                 document.getElementById('modalVehicleIcon').value = "airport_shuttle";
                 document.getElementById('modalInfiniteTime').checked = false;
-                validateVehicleIdDuplicate();
+                validateVehicleIdInput();
             }
             document.getElementById('vehicleModal').classList.remove('hidden');
         }
 
         function closeVehicleModal() { document.getElementById('vehicleModal').classList.add('hidden'); }
 
-        function validateVehicleIdDuplicate() {
+        // 自動車用ナンバープレートの正規表現チェック＆表記正規化
+        function normalizeAndValidatePlateNumber(rawInput) {
+            if (!rawInput) return { valid: false, normalized: "" };
+
+            // 全角英数字を半角に変換し、前後の空白を除去
+            let str = rawInput.trim().replace(/[Ａ-Ｚａ-ｚ０-９]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0));
+
+            // 地域名(漢字/ひらがな/カタカナ1〜4文字) + 分類番号(3桁の数字/英字) + 任意スペース + ひらがな1文字 + 一連番号(1〜4桁の数字)
+            // ※「お・し・へ・ん」を除く自動車用ひらがなに対応
+            const plateRegex = /^([一-龠ぁ-んァ-ヶー]{1,4})\s*([0-9]{1}[0-9A-Z]{2})[\s　]*([あ-えか-さす-ほま-もやゆよら-ろわを])[\s　]*([0-9]{1,4})$/;
+            const match = str.match(plateRegex);
+
+            if (!match) {
+                return { valid: false, normalized: str };
+            }
+
+            // 「品川500 わ1234」の統一フォーマットに整形
+            const area = match[1];
+            const classNum = match[2];
+            const hiragana = match[3];
+            const serialNum = match[4];
+            const normalized = `${area}${classNum} ${hiragana}${serialNum}`;
+
+            return { valid: true, normalized };
+        }
+
+        function validateVehicleIdInput() {
             if (editingVehicleId) return;
-            const inputId = document.getElementById('modalVehicleId').value.trim();
-            const warningElem = document.getElementById('duplicateWarning');
+            const rawInput = document.getElementById('modalVehicleId').value;
+            const formatWarningElem = document.getElementById('formatWarning');
+            const dupWarningElem = document.getElementById('duplicateWarning');
             const saveBtn = document.getElementById('saveVehicleModalBtn');
 
-            if (inputId && state.vehicles[inputId]) {
-                warningElem.classList.remove('hidden');
+            const { valid, normalized } = normalizeAndValidatePlateNumber(rawInput);
+
+            // 未入力時は警告を隠して保存ボタンのみ無効化
+            if (!rawInput.trim()) {
+                formatWarningElem.classList.add('hidden');
+                dupWarningElem.classList.add('hidden');
+                saveBtn.disabled = true;
+                saveBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                return;
+            }
+
+            // 自動車ナンバー形式チェック
+            if (!valid) {
+                formatWarningElem.classList.remove('hidden');
+                dupWarningElem.classList.add('hidden');
+                saveBtn.disabled = true;
+                saveBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                return;
+            } else {
+                formatWarningElem.classList.add('hidden');
+            }
+
+            // 重複チェック（正規化後の文字列で比較）
+            if (state.vehicles[normalized]) {
+                dupWarningElem.classList.remove('hidden');
                 saveBtn.disabled = true;
                 saveBtn.classList.add('opacity-50', 'cursor-not-allowed');
             } else {
-                warningElem.classList.add('hidden');
+                dupWarningElem.classList.add('hidden');
                 saveBtn.disabled = false;
                 saveBtn.classList.remove('opacity-50', 'cursor-not-allowed');
             }
         }
 
         async function saveVehicleModal() {
-            const vId = document.getElementById('modalVehicleId').value.trim();
+            const rawId = document.getElementById('modalVehicleId').value;
             const name = document.getElementById('modalVehicleName').value.trim();
             const driverName = document.getElementById('modalDriverName').value.trim();
             const color = document.getElementById('modalVehicleColor').value;
             const iconType = document.getElementById('modalVehicleIcon').value;
             const infiniteTime = document.getElementById('modalInfiniteTime').checked;
 
-            if (!vId || !name) { showToast('車両IDと名前を入力してください', 'warning'); return; }
+            let vId = rawId.trim();
+
+            // 新規追加時は自動車ナンバー形式を厳密にチェック＆正規化
+            if (!editingVehicleId) {
+                const { valid, normalized } = normalizeAndValidatePlateNumber(rawId);
+                if (!valid) {
+                    showToast('自動車ナンバーの形式（例: 品川500 わ1234）で入力してください', 'warning');
+                    return;
+                }
+                vId = normalized;
+            }
+
+            if (!vId || !name) { showToast('車両番号と名前を入力してください', 'warning'); return; }
 
             if (!editingVehicleId && state.vehicles[vId]) {
-                showToast(`車両ID「${vId}」は既に使用されています`, 'warning');
+                showToast(`車両番号「${vId}」は既に使用されています`, 'warning');
                 return;
             }
 
