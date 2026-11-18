@@ -740,7 +740,7 @@
             Object.values(state.vehicles).forEach(v => {
                 const colorHex = v.color || '#6366f1';
                 const iconName = v.iconType || 'airport_shuttle';
-                const freeBadge = v.infiniteTime ? ' <span style="background:#fef3c7;color:#92400e;padding:1px 4px;border-radius:4px;font-size:10px;font-weight:bold;">無料入構</span>' : '';
+                const freeBadge = v.infiniteTime ? ' <style="background:#fef3c7;color:#92400e;padding:1px 4px;border-radius:4px;font-size:10px;font-weight:bold;">無料入構' : '';
                 const statusStr = v.isInside ? `【構内】${v.entryGateName || '入構中'}` : '構外';
 
                 const popupHtml = `
@@ -1048,7 +1048,7 @@
                 state.latestGpsLog = null;
                 document.getElementById('toggleGpsBtn').classList.replace('bg-brand-600', 'bg-rose-600');
                 document.getElementById('toggleGpsBtn').innerHTML = `<span class="material-symbols-outlined text-lg">stop</span> 送信停止`;
-                document.getElementById('driverStatusText').innerText = "リアルタイム送信中";
+                document.getElementById('driverStatusText').innerText = "リアルタイム監視中 (30秒間隔送信)";
                 document.getElementById('driverStatusText').className = "text-xs font-bold text-emerald-600 dark:text-emerald-400";
 
                 // Wake Lock 要求（設定がONの場合のみ）
